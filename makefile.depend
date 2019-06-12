@@ -2,13 +2,12 @@
 # Dependencies:
 objs/fzero.o:
 objs/vmec2sfl_vars.o: 
-objs/vmec2sfl_io.o: objs/vmec2sfl_vars.mod
-objs/vmec2sfl_interface.o: objs/vmec2sfl_vars.mod objs/vmec2sfl_io.mod objs/vmec2sfl.mod  
-objs/vmec2sfl.o: $(LIBSTELL) objs/vmec2sfl_vars.mod
+objs/vmec2sfl_io.o: objs/vmec2sfl_vars_mod.mod
+objs/vmec2sfl_interface.o: objs/vmec2sfl_vars_mod.mod objs/vmec2sfl_io_mod.mod objs/vmec2sfl_mod.mod  
+objs/vmec2sfl.o: $(LIBSTELL) objs/vmec2sfl_vars_mod.mod
 
 
 objs/fzero.mod: objs/fzero.o
-objs/vmec2sfl_vars.mod: objs/vmec2sfl_vars.o
-objs/vmec2sfl_io.mod: objs/vmec2sfl_io.o
-objs/vmec2sfl_interface.mod: objs/vmec2sfl_interface.o
-objs/vmec2sfl.mod: objs/vmec2sfl.o
+objs/vmec2sfl_vars_mod.mod: objs/vmec2sfl_vars.o
+objs/vmec2sfl_io_mod.mod: objs/vmec2sfl_io.o
+objs/vmec2sfl_mod.mod: objs/vmec2sfl.o

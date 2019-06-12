@@ -8,7 +8,7 @@ program vmec2sfl_interface
   implicit none
   real(rp), parameter :: pi = 4.0*atan(1.0)
   real(rp), parameter :: pi2 = 8.0*atan(1.0)
-  integer :: nz_grid, j
+  integer :: nt_grid, nz_grid, j
   real(rp) :: nfpi, zeta_center
   character(len=256) :: infile
 
@@ -51,7 +51,7 @@ program vmec2sfl_interface
   !nz_grid = max_point
   !nz_grid = (points_per_turn - 1)/2 * global_npol
   !nz_grid = points_per_turn/2 * global_npol
-  periods = 1.0
+  periods = 5.0
   nz_grid = points_per_turn/2
   nfpi = periods*safety_factor_q
   nfpi = periods
@@ -80,7 +80,8 @@ program vmec2sfl_interface
 !      & jac_gist_inv(1,j), cvdrift(1,j), cvdrift0(1,j), d_B_d_par(1,j), zeta(j)/safety_factor_q
 !  END DO
   !call write_sfl_file(nz_grid,global_npol)
-  call write_RZ_surface(nz_grid)
+  nt_grid = n_alpha
+  call write_RZ_surface(nt_grid,nz_grid,periods,periods)
 
   deallocate(alpha)
   deallocate(zeta)
