@@ -1,8 +1,14 @@
 # -*- mode: makefile -*-
-
-OBJ_FILES = fzero.o test_vmec_to_gs2_geometry_interface.o vmec_to_gs2_geometry_interface.o
-
 # Dependencies:
-fzero.o:
-test_vmec_to_gs2_geometry_interface.o: vmec_to_gs2_geometry_interface.o 
-vmec_to_gs2_geometry_interface.o: mini_libstell/mini_libstell.a
+objs/fzero.o:
+objs/vmec2sfl_vars.o: 
+objs/vmec2sfl_io.o: objs/vmec2sfl_vars.mod
+objs/vmec2sfl_interface.o: objs/vmec2sfl_vars.mod objs/vmec2sfl_io.mod objs/vmec2sfl.mod  
+objs/vmec2sfl.o: $(LIBSTELL) objs/vmec2sfl_vars.mod
+
+
+objs/fzero.mod: objs/fzero.o
+objs/vmec2sfl_vars.mod: objs/vmec2sfl_vars.o
+objs/vmec2sfl_io.mod: objs/vmec2sfl_io.o
+objs/vmec2sfl_interface.mod: objs/vmec2sfl_interface.o
+objs/vmec2sfl.mod: objs/vmec2sfl.o
