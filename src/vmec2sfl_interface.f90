@@ -51,7 +51,7 @@ program vmec2sfl_interface
   !nz_grid = max_point
   !nz_grid = (points_per_turn - 1)/2 * global_npol
   !nz_grid = points_per_turn/2 * global_npol
-  periods = 5.0
+  periods = 4.0
   nz_grid = points_per_turn/2
   nfpi = periods*safety_factor_q
   nfpi = periods

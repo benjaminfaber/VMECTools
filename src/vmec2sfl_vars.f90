@@ -43,6 +43,7 @@ module vmec2sfl_vars_mod
 
   ! L_reference is the reference length used for gs2's normalization, in meters.
   real(rp) :: L_reference
+  real(rp) :: R0
 
   ! B_reference is the reference magnetic field strength used for gs2's normalization, in Tesla.
   real(rp) :: B_reference

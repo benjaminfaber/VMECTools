@@ -131,6 +131,7 @@ contains
 
     ! Set reference length and magnetic field for GS2's normalization, 
     ! using the choices made by Pavlos Xanthopoulos in GIST:
+    R0 = Rmajor
     L_reference = Aminor ! Note that 'Aminor' in read_wout_mod is called 'Aminor_p' in the wout*.nc file.
     B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (L_reference * L_reference)
     if (verbose) then
