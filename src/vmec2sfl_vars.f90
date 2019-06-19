@@ -7,12 +7,17 @@
 module vmec2sfl_vars_mod
 
   implicit none
+  integer, parameter :: dp = selected_real_kind(15,300)
 
-  public :: rp, normalized_toroidal_flux_used, safety_factor_q, shat, L_reference, B_reference, &
+  type, public :: Eq_Object
+    real :: normalized_toroidal_flux_used
+
+    real :: safety
+
+  public :: dp, normalized_toroidal_flux_used, safety_factor_q, shat, L_reference, B_reference, &
     & alpha, zeta, bmag, gradpar, gds2, gds21, gds22, &
     & gbdrift, gbdrift0, cvdrift, cvdrift0, jac_gist_inv, d_B_d_par, verbose
 
-  integer, parameter :: rp = selected_real_kind(15,300)
   !*********************************************************************
   ! Input quantities
   !*********************************************************************
@@ -32,43 +37,43 @@ module vmec2sfl_vars_mod
 
   ! On exit, normalized_toroidal_flux_used holds the flux surface that was actually used for the geometry,
   ! as measured by psi_toroidal / psi_{toroidal,edge}
-  real(rp) :: normalized_toroidal_flux_used
+  real(dp) :: normalized_toroidal_flux_used
 
   ! Safety factor q = 1/iota
-  real(rp) :: safety_factor_q
+  real(dp) :: safety_factor_q
 
   ! Magnetic shear shat = (x/q) * (d q / d x) where x = Aminor_p * sqrt(psi_toroidal / psi_{toroidal,edge})
   ! and Aminor_p is the minor radius calculated by VMEC.
-  real(rp) :: shat
+  real(dp) :: shat
 
   ! L_reference is the reference length used for gs2's normalization, in meters.
-  real(rp) :: L_reference
-  real(rp) :: R0
+  real(dp) :: L_reference
+  real(dp) :: R0
 
   ! B_reference is the reference magnetic field strength used for gs2's normalization, in Tesla.
-  real(rp) :: B_reference
+  real(dp) :: B_reference
 
   ! On exit, alpha holds the grid points in alpha = theta_p - iota * zeta, where theta_p is the PEST toroidal angle
-  real(rp), dimension(:), allocatable :: alpha
+  real(dp), dimension(:), allocatable :: alpha
 
   ! On exit, zeta holds the grid points in the toroidal angle zeta
-  real(rp), dimension(:), allocatable:: zeta
+  real(dp), dimension(:), allocatable:: zeta
 
   ! Arrays that contain the geometric elements along field lines
-  real(rp), dimension(:,:), allocatable :: bmag  ! Magnitude of B
-  real(rp), dimension(:,:), allocatable :: gradpar ! Grad parallel
-  real(rp), dimension(:,:), allocatable :: gds2 ! Metric element gss
-  real(rp), dimension(:,:), allocatable :: gds21 ! Metric element gsa
-  real(rp), dimension(:,:), allocatable :: gds22 ! Metric element gaa
-  real(rp), dimension(:,:), allocatable :: gbdrift ! grad B drift in s
-  real(rp), dimension(:,:), allocatable :: gbdrift0 ! grad B drift in a
-  real(rp), dimension(:,:), allocatable :: cvdrift ! curv drift in s
-  real(rp), dimension(:,:), allocatable :: cvdrift0 ! curv drift in a
-  real(rp), dimension(:,:), allocatable :: jac_gist_inv ! jacobian
-  real(rp), dimension(:,:), allocatable :: d_B_d_par ! parallel derivative of B
+  real(dp), dimension(:,:), allocatable :: bmag  ! Magnitude of B
+  real(dp), dimension(:,:), allocatable :: gradpar ! Grad parallel
+  real(dp), dimension(:,:), allocatable :: gds2 ! Metric element gss
+  real(dp), dimension(:,:), allocatable :: gds21 ! Metric element gsa
+  real(dp), dimension(:,:), allocatable :: gds22 ! Metric element gaa
+  real(dp), dimension(:,:), allocatable :: gbdrift ! grad B drift in s
+  real(dp), dimension(:,:), allocatable :: gbdrift0 ! grad B drift in a
+  real(dp), dimension(:,:), allocatable :: cvdrift ! curv drift in s
+  real(dp), dimension(:,:), allocatable :: cvdrift0 ! curv drift in a
+  real(dp), dimension(:,:), allocatable :: jac_gist_inv ! jacobian
+  real(dp), dimension(:,:), allocatable :: d_B_d_par ! parallel derivative of B
 
   ! Surface quantities
-  real(rp), dimension(:,:), allocatable :: Rsurf ! R coordinate as a function of straight field line angles
-  real(rp), dimension(:,:), allocatable :: Zsurf ! Z coordinate as a function of straight field line angles
+  real(dp), dimension(:,:), allocatable :: Rsurf ! R coordinate as a function of straight field line angles
+  real(dp), dimension(:,:), allocatable :: Zsurf ! Z coordinate as a function of straight field line angles
 
 end module 

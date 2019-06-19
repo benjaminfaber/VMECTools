@@ -6,14 +6,14 @@ program vmec2sfl_interface
   use read_wout_mod, only: nfp
 
   implicit none
-  real(rp), parameter :: pi = 4.0*atan(1.0)
-  real(rp), parameter :: pi2 = 8.0*atan(1.0)
+  real(dp), parameter :: pi = 4.0*atan(1.0)
+  real(dp), parameter :: pi2 = 8.0*atan(1.0)
   integer :: nt_grid, nz_grid, j
-  real(rp) :: nfpi, zeta_center
+  real(dp) :: nfpi, zeta_center
   character(len=256) :: infile
 
-  real(rp) :: time1, time2
-  real(rp) :: dtheta, max_theta, periods
+  real(dp) :: time1, time2
+  real(dp) :: dtheta, max_theta, periods
   integer :: global_npol, max_point
   ! Output quantities
   
@@ -37,7 +37,7 @@ program vmec2sfl_interface
   call read_input(infile)
 
   call read_vmec_file(geom_file)
-  call get_surface_quantities(s0,surf_opt)
+  call compute_surface_quantities(s0,surf_opt)
 
 !  dtheta = pi2/real(points_per_turn) 
   max_theta = kx_max/(abs(shat)*ky_min) + 24.0*pi2
@@ -72,7 +72,7 @@ program vmec2sfl_interface
   allocate(Rsurf(n_alpha,-nz_grid:nz_grid))
   allocate(Zsurf(n_alpha,-nz_grid:nz_grid))
    
-  call vmec2sfl(n_alpha,nz_grid,zeta_center,nfpi)
+  call compute_sfl_quantities(n_alpha,nz_grid,zeta_center,nfpi)
 
 !print *, gds22(1,-nz_grid), gds21(1,-nz_grid),gds2(1,-nz_grid), Bmag(1,-nz_grid),jac_gist_inv(1,-nz_grid),cvdrift(1,-nz_grid),cvdrift0(1,-nz_grid),d_B_d_par(1,-nz_grid)
 !  DO j = 0,nz_grid

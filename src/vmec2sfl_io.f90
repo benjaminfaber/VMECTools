@@ -11,14 +11,14 @@ module vmec2sfl_io_mod
   character(len=2000) :: tag, geom_file, outdir
   character(len=5) :: zcoord
   integer :: n_alpha, points_per_turn, n_turns, surf_opt
-  real(rp) :: z_center, max_angle, kx_max, ky_min, s0
+  real(dp) :: z_center, max_angle, kx_max, ky_min, s0
 
 contains
   
   subroutine read_input(filename)
     ! Reads the parameters from the input file
     implicit none
-    real(rp), parameter :: pi = 4.0*atan(1.0)
+    real(dp), parameter :: pi = 4.0*atan(1.0)
     character(len=256), intent(in) :: filename
     integer :: iunit
 
@@ -72,9 +72,9 @@ contains
 
   subroutine write_sfl_file(nzgrid,nturns)
     implicit none
-    real(rp), parameter :: pi = 4.0*atan(1.0)
+    real(dp), parameter :: pi = 4.0*atan(1.0)
     integer, intent(in) :: nzgrid, nturns
-    real(rp) :: iota
+    real(dp) :: iota
     integer :: j, k, iunit
     character(len=2000) :: filename
 
@@ -103,13 +103,13 @@ contains
   subroutine write_RZ_surface(ntgrid,nzgrid,nfpi,nfp)
     implicit none
     integer, intent(in) :: ntgrid, nzgrid
-    real(rp), intent(in) :: nfpi, nfp 
-    real(rp) :: iota, theta, theta_j, theta_jp1, theta_interp, dt1, dt2, delta, Rsurf_interp, Zsurf_interp
+    real(dp), intent(in) :: nfpi, nfp 
+    real(dp) :: iota, theta, theta_j, theta_jp1, theta_intedp, dt1, dt2, delta, Rsurf_intedp, Zsurf_intedp
     integer i, j, jp1, k, iunit_R, iunit_Z, iunit_cyl, theta_index
     character(len=2000) :: filename_R, filename_Z, filename_cyl
-    real(rp), parameter :: pi = 4.0*atan(1.0)
-    real(rp), parameter :: pi2 = 8.0*atan(1.0)
-    real(rp), parameter :: eps = 1e-8
+    real(dp), parameter :: pi = 4.0*atan(1.0)
+    real(dp), parameter :: pi2 = 8.0*atan(1.0)
+    real(dp), parameter :: eps = 1e-8
 
     delta = (real(ntgrid)*nfpi)/(nfp*real(nzgrid))
 
@@ -158,19 +158,19 @@ contains
         theta_jp1 = mod(theta_jp1,pi2)
 
         theta_index = mod(i,ntgrid)
-        theta_interp = real(theta_index)*pi2/real(ntgrid)
-        dt1 = theta_interp - theta_j
+        theta_intedp = real(theta_index)*pi2/real(ntgrid)
+        dt1 = theta_intedp - theta_j
         if (dt1 .lt. -eps) then
           dt1 = dt1 + pi2
         end if
-        dt2 = theta_jp1 - theta_interp
+        dt2 = theta_jp1 - theta_intedp
         if (dt2 .lt. -eps) then
           dt2 = dt2 + pi2
         end if       
-        Rsurf_interp = real(ntgrid)/pi2*(dt2*Rsurf(j,k) + dt1*Rsurf(jp1,k))
-        Zsurf_interp = real(ntgrid)/pi2*(dt2*Zsurf(j,k) + dt1*Zsurf(jp1,k))
-        write (iunit_R,'(2(I5,2x),F12.7)') theta_index+1, k+nzgrid+1, Rsurf_interp
-        write (iunit_Z,'(2(I5,2x),F12.7)') theta_index+1, k+nzgrid+1, Zsurf_interp
+        Rsurf_intedp = real(ntgrid)/pi2*(dt2*Rsurf(j,k) + dt1*Rsurf(jp1,k))
+        Zsurf_intedp = real(ntgrid)/pi2*(dt2*Zsurf(j,k) + dt1*Zsurf(jp1,k))
+        write (iunit_R,'(2(I5,2x),F12.7)') theta_index+1, k+nzgrid+1, Rsurf_intedp
+        write (iunit_Z,'(2(I5,2x),F12.7)') theta_index+1, k+nzgrid+1, Zsurf_intedp
         write (iunit_cyl,'(3(F12.7,2x))') Rsurf(j,k), Zsurf(j,k), -zeta(k)
       end do
       write (iunit_R,'(A)') " "

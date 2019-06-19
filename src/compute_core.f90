@@ -8,67 +8,62 @@
 ! coordinate systems.  As such, some of the variable names have bene modified.
 ! Skip down ~25 lines for detailed description of the input and output parameters.
 
-module vmec2sfl_mod
+module compute_core 
 
-  use vmec2sfl_vars_mod
+  use types: dp, pi, mu_0
+  use eq_object: Eq_Object
   implicit none
 
+  public :: compute_surface_quantities, compute_sfl_quantities
+  
   private
 
-  public :: get_surface_quantities, vmec2sfl
-
+  ! Module wide to variables
   integer :: sign_toroidal_flux
-  real(rp) :: theta_pest_target, zeta0, edge_toroidal_flux_over_2pi
-  real(rp) :: iota, ds, d_pressure_d_s, d_iota_d_s
-  real(rp), dimension(2) :: vmec_radial_weight_full, vmec_radial_weight_half
+  real(dp) :: theta_pest_target, zeta0, edge_toroidal_flux_over_2pi
+  real(dp) :: iota, ds, d_pressure_d_s, d_iota_d_s
+  real(dp), dimension(2) :: vmec_radial_weight_full, vmec_radial_weight_half
   integer, dimension(2) :: vmec_radial_index_full, vmec_radial_index_half
 
 contains
 
-  subroutine get_surface_quantities(desired_normalized_toroidal_flux,&
-    &vmec_surface_option)
+  subroutine compute_surface_quantities(desired_normalized_toroidal_flux,&
+    &vmec_surface_option, Eq_Obj)
 
-    use read_wout_mod, nzgrid_vmec => nzgrid ! VMEC has a variable nzgrid which conflicts with our nzgrid, so rename vmec's version.
+    !use read_wout_mod, nzgrid_vmec => Eq_Obj%nx3 ! VMEC has a variable ngzrid which conflicts with our Eq_Obj%nx3, so rename vmec's version.
 
     implicit none
     !*********************************************************************
     ! Input parameters
     !*********************************************************************
-
-
     ! The parameter desired_normalized_toroidal_flux determines which flux surface from the VMEC file will be used
     ! for the computation. This parameter should lie in the interval [0,1].
-    real(rp), intent(in) :: desired_normalized_toroidal_flux
+    real(dp), intent(in) :: desired_normalized_toroidal_flux
 
 
     ! If vmec_surface_option = 0, the magnetic surface specified by desired_normalized_toroidal_flux will be used,
-    ! by interpolating between the surfaces available in the vmec file.
+    ! by intedpolating between the surfaces available in the vmec file.
     ! If vmec_surface_option = 1, the magnetic surface on vmec's HALF radial mesh will be used that is closest to desired_normalized_toroidal_flux.
     ! If vmec_surface_option = 2, the magnetic surface on vmec's FULL radial mesh will be used that is closest to desired_normalized_toroidal_flux.    
     ! Other values of vmec_surface_option will cause the program to abort with an error.
     integer, intent(in) :: vmec_surface_option
+
+    type(Eq_Object), intent(inout) :: Eq_Obj
 
 
     !***************************************************************************
     ! Output parameters
     !***************************************************************************
     !! Pass back number of field periods to the interface routine
-    !real(rp), intent(out) :: local_nfp
-
-    !*********************************************************************
-    ! Variables used internally by this subroutine
-    !*********************************************************************
-
-    real(rp), parameter :: pi = 3.1415926535897932d+0
-    real(rp), parameter :: zero = 0.0d+0
-    real(rp), parameter :: one = 1.0d+0
-    real(rp), parameter :: mu_0 = 4*pi*(1.0d-7)
+    !real(dp), intent(out) :: local_nfp
 
     integer :: j, index
     !integer :: ierr, iopen 
-    real(rp) :: dphi, min_dr2
-    real(rp), dimension(:), allocatable :: dr2, normalized_toroidal_flux_full_grid, normalized_toroidal_flux_half_grid
-    real(rp), dimension(:), allocatable :: d_pressure_d_s_on_half_grid, d_iota_d_s_on_half_grid
+    real(dp) :: dphi, min_dr2
+    real(dp), dimension(:), allocatable :: dr2, normalized_toroidal_flux_full_grid, normalized_toroidal_flux_half_grid
+    real(dp), dimension(:), allocatable :: d_pressure_d_s_on_half_grid, d_iota_d_s_on_half_grid
+
+    integer :: ns
     !*********************************************************************
     ! VMEC variables of interest:
     ! ns = number of flux surfaces used by VMEC
@@ -88,7 +83,7 @@ contains
     ! Beginning of executable statements.
     !*********************************************************************
 
-    if (verbose) print *,"Entering subroutine vmec2sfl."
+    if (verbose) print *,"Entering subroutine compute_surface_quantities."
 
     !*********************************************************************
     ! Do some validation.
@@ -123,7 +118,7 @@ contains
        end if
     end if
 
-    edge_toroidal_flux_over_2pi = phi(ns) / (2*pi) * isigng ! isigns is called signgs in the wout*.nc file. Why is this signgs here?
+    edge_toroidal_flux_over_2pi = Eq_Obj%VMEC_Obj%phi(ns) / (2*pi) * Eq_Obj%VMEC_Obj%isigng ! isigns is called signgs in the wout*.nc file. Why is this signgs here?
 
     ! this gives the sign of the edge toroidal flux
     sign_toroidal_flux = int(sign(1.1,edge_toroidal_flux_over_2pi))
@@ -131,12 +126,19 @@ contains
 
     ! Set reference length and magnetic field for GS2's normalization, 
     ! using the choices made by Pavlos Xanthopoulos in GIST:
-    R0 = Rmajor
-    L_reference = Aminor ! Note that 'Aminor' in read_wout_mod is called 'Aminor_p' in the wout*.nc file.
-    B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (L_reference * L_reference)
+    Eq_Obj%major_R = Rmajor
+    Eq_Obj%minor_r = Aminor ! Note that 'Aminor' in read_wout_mod is called 'Aminor_p' in the wout*.nc file.
+
+    if (norm_type == 'minor_r') then
+      Eq_Obj%L_reference => Eq_Obj%minor_r
+    else
+      Eq_Obj%L_reference => Eq_Obj%major_R
+    end if
+
+    Eq_Obj%B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (Eq_Obj%L_reference * Eq_Obj%L_reference)
     if (verbose) then
-       print *,"  Reference length for GS2 normalization:",L_reference," meters."
-       print *,"  Reference magnetic field strength for GS2 normalization:",B_reference," Tesla."
+       print *,"  Reference length for normalization:",Eq_Obj%L_reference," meters."
+       print *,"  Reference magnetic field strength normalization:",Eq_Obj%B_reference," Tesla."
     end if
 
     ! --------------------------------------------------------------------------------
@@ -266,8 +268,8 @@ contains
     ! Done choosing the actual radius to use.
     ! --------------------------------------------------------------------------------
 
-    ! In general, we get quantities for gs2 by linear interpolation, taking a weighted average of the quantity from
-    ! 2 surfaces in the VMEC file. Sometimes the weights are 0 and 1, i.e. no interpolation is needed.
+    ! In general, we get quantities for gs2 by linear intedpolation, taking a weighted average of the quantity from
+    ! 2 surfaces in the VMEC file. Sometimes the weights are 0 and 1, i.e. no intedpolation is needed.
 
     ! For any VMEC quantity Q on the full grid, the value used in GS2 will be
     !  Q_gs2 = Q(vmec_radial_index_full(1))*vmec_radial_weight_full(1) + Q(vmec_radial_index_full(2))*vmec_radial_weight_full(2)
@@ -284,15 +286,15 @@ contains
     elseif (normalized_toroidal_flux_used==1) then
        vmec_radial_index_full(1) = ns-1
        vmec_radial_index_full(2) = ns
-       vmec_radial_weight_full(1) = zero
+       vmec_radial_weight_full(1) = 0.0d0
     else
        ! normalized_toroidal_flux_used is >= 0 and <1
        ! This is the most common case.
        vmec_radial_index_full(1) = floor(normalized_toroidal_flux_used*(ns-1))+1
        vmec_radial_index_full(2) = vmec_radial_index_full(1) + 1
-       vmec_radial_weight_full(1) = vmec_radial_index_full(1) - normalized_toroidal_flux_used*(ns-one)
+       vmec_radial_weight_full(1) = vmec_radial_index_full(1) - normalized_toroidal_flux_used*(ns-1.0d0)
     end if
-    vmec_radial_weight_full(2) = one - vmec_radial_weight_full(1)
+    vmec_radial_weight_full(2) = 1.0d0 - vmec_radial_weight_full(1)
 
     ! Handle quantities for the half grid
     if (normalized_toroidal_flux_used < normalized_toroidal_flux_half_grid(1)) then
@@ -316,7 +318,7 @@ contains
        ! We are exactly at the last point of the half grid
        vmec_radial_index_half(1) = ns-1
        vmec_radial_index_half(2) = ns
-       vmec_radial_weight_half(1) = zero
+       vmec_radial_weight_half(1) = 0.0d0
     else
        ! normalized_toroidal_flux_used is inside the half grid.
        ! This is the most common case.
@@ -326,9 +328,9 @@ contains
           vmec_radial_index_half(1) = 2
        end if
        vmec_radial_index_half(2) = vmec_radial_index_half(1) + 1
-       vmec_radial_weight_half(1) = vmec_radial_index_half(1) - normalized_toroidal_flux_used*(ns-one) - (0.5d+0)
+       vmec_radial_weight_half(1) = vmec_radial_index_half(1) - normalized_toroidal_flux_used*(ns-1.0d0) - (0.5d+0)
     end if
-    vmec_radial_weight_half(2) = one-vmec_radial_weight_half(1)
+    vmec_radial_weight_half(2) = 1.0d0-vmec_radial_weight_half(1)
 
     if (verbose) then
        if (abs(vmec_radial_weight_half(1)) < 1e-14) then
@@ -336,10 +338,10 @@ contains
        elseif (abs(vmec_radial_weight_half(2)) < 1e-14) then
           print "(a,i4,a,i4,a)","   Using radial index ",vmec_radial_index_half(1)," of ",ns," from vmec's half mesh."
        else
-          print "(a,i4,a,i4,a,i4,a)", "   Interpolating using radial indices ",vmec_radial_index_half(1)," and ",vmec_radial_index_half(2),&
+          print "(a,i4,a,i4,a,i4,a)", "   Intedpolating using radial indices ",vmec_radial_index_half(1)," and ",vmec_radial_index_half(2),&
                " of ",ns," from vmec's half mesh."
           print "(a,f17.14,a,f17.14)", "   Weights for half mesh = ",vmec_radial_weight_half(1)," and ",vmec_radial_weight_half(2)
-          print "(a,i4,a,i4,a,i4,a)", "   Interpolating using radial indices ",vmec_radial_index_full(1)," and ",vmec_radial_index_full(2),&
+          print "(a,i4,a,i4,a,i4,a)", "   Intedpolating using radial indices ",vmec_radial_index_full(1)," and ",vmec_radial_index_full(2),&
                " of ",ns," from vmec's full mesh."
           print "(a,f17.14,a,f17.14)", "   Weights for full mesh = ",vmec_radial_weight_full(1)," and ",vmec_radial_weight_full(2)
        end if
@@ -350,10 +352,10 @@ contains
     ! we ended up choosing.
     !*********************************************************************
 
-    iota = iotas(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
+    Eq_Obj%iota = iotas(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
          + iotas(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
-    if (verbose) print *,"  iota =",iota
-    safety_factor_q = 1/iota
+    if (verbose) print *,"  iota =",Eq_Obj%iota
+    Eq_Obj%safety_factor_q = 1/Eq_Obj%iota
 
     allocate(d_iota_d_s_on_half_grid(ns))
     d_iota_d_s_on_half_grid = 0
@@ -367,7 +369,7 @@ contains
     if (verbose) print *,"  d iota / d s =",d_iota_d_s
     ! shat = (r/q)(dq/dr) where r = a sqrt(s).
     !      = - (r/iota) (d iota / d r) = -2 (s/iota) (d iota / d s)
-    shat = (-2 * normalized_toroidal_flux_used / iota) * d_iota_d_s
+    Eq_Obj%shat = (-2 * normalized_toroidal_flux_used / iota) * d_iota_d_s
 
     allocate(d_pressure_d_s_on_half_grid(ns))
     d_pressure_d_s_on_half_grid = 0
@@ -381,79 +383,74 @@ contains
 
     deallocate(normalized_toroidal_flux_full_grid)
     deallocate(normalized_toroidal_flux_half_grid)
-  end subroutine get_surface_quantities
+  end subroutine compute_surface_quantities
 
 
 !*******************************************************************************
-! Subroutine vmec2sfl
+! Subroutine compute_sfl_quantities
 !*******************************************************************************
-  subroutine vmec2sfl(nalpha, nzgrid, zeta_center, &
-    & number_of_field_periods_to_include)
+  subroutine compute_sfl_quantities(Eq_Obj%nx2, Eq_Obj%nx3, zeta_center, &
+    & number_of_field_periods_to_include,Eq_Obj)
 
-    use read_wout_mod, nzgrid_vmec => nzgrid  ! VMEC has a variable nzgrid which conflicts with our nzgrid, so rename vmec's version.
+    use read_wout_mod, Eq_Obj%nx3_vmec => Eq_Obj%nx3  ! VMEC has a variable Eq_Obj%nx3 which conflicts with our Eq_Obj%nx3, so rename vmec's version.
 
     implicit none
     !***************************************************************************
     ! Input parameters
     !***************************************************************************
 
-    ! nalpha is the number of grid points in the alpha coordinate:
-    integer, intent(in) :: nalpha
+    ! Eq_Obj%nx2 is the number of grid points in the alpha coordinate:
+    integer, intent(in) :: Eq_Obj%nx2
 
-    ! The zeta grid has nzgrid*2+1 points, including the "repeated" point at index -nzgrid and +nzgrid.
-    integer, intent(in) :: nzgrid
+    ! The zeta grid has Eq_Obj%nx3*2+1 points, including the "repeated" point at index -Eq_Obj%nx3 and +Eq_Obj%nx3.
+    integer, intent(in) :: Eq_Obj%nx3
 
     ! The zeta domain is centered at zeta_center. Setting zeta_center = 2*pi*N/nfp for any integer N should
     ! yield identical results to setting zeta_center = 0, where nfp is the number of field periods (as in VMEC).
-    real(rp) :: zeta_center
+    real(dp) :: zeta_center
 
     ! If number_of_field_periods_to_include is > 0, then this parameter does what you think:
     ! the extent of the toroidal in zeta will be 2*pi*number_of_field_periods_to_include/nfp.
     ! If number_of_field_periods_to_include is <= 0, the entire 2*pi toroidal domain will be included.
-    real(rp) :: number_of_field_periods_to_include
+    real(dp) :: number_of_field_periods_to_include
 
 
     !*********************************************************************
     ! Variables used internally by this subroutine
     !*********************************************************************
 
-    real(rp), parameter :: pi = 3.1415926535897932d+0
-    real(rp), parameter :: zero = 0.0d+0
-    real(rp), parameter :: one = 1.0d+0
-    real(rp), parameter :: mu_0 = 4*pi*(1.0d-7)
-
     integer :: j, iz, ia, which_surface, isurf, m, n, imn, imn_nyq
-    real(rp) :: angle, sin_angle, cos_angle, temp 
-    real(rp), dimension(:,:), allocatable :: theta_vmec
+    real(dp) :: angle, sin_angle, cos_angle, temp 
+    real(dp), dimension(:,:), allocatable :: theta_vmec
     !integer :: ierr, iopen, fzero_flag
     integer :: fzero_flag
-    real(rp) :: number_of_field_periods_to_include_final
-    real(rp) :: d_pressure_d_s, scale_factor
-    real(rp) :: theta_vmec_min, theta_vmec_max, sqrt_s
-    real(rp) :: root_solve_absolute_tolerance, root_solve_relative_tolerance
+    real(dp) :: number_of_field_periods_to_include_final
+    real(dp) :: d_pressure_d_s, scale_factor
+    real(dp) :: theta_vmec_min, theta_vmec_max, sqrt_s
+    real(dp) :: root_solve_absolute_tolerance, root_solve_relative_tolerance
     logical :: non_Nyquist_mode_available, found_imn
-    real(rp), dimension(:,:), allocatable :: B, sqrt_g, R, Z, B_dot_grad_theta_pest_over_B_dot_grad_zeta, temp2D
-    real(rp), dimension(:,:), allocatable :: d_B_d_theta_vmec, d_B_d_zeta, d_B_d_s
-    real(rp), dimension(:,:), allocatable :: d_R_d_theta_vmec, d_R_d_zeta, d_R_d_s
-    real(rp), dimension(:,:), allocatable :: d_Z_d_theta_vmec, d_Z_d_zeta, d_Z_d_s
-    real(rp), dimension(:,:), allocatable :: d_X_d_theta_vmec, d_X_d_zeta, d_X_d_s
-    real(rp), dimension(:,:), allocatable :: d_Y_d_theta_vmec, d_Y_d_zeta, d_Y_d_s
-    real(rp), dimension(:,:), allocatable :: d_Lambda_d_theta_vmec, d_Lambda_d_zeta, d_Lambda_d_s
-    real(rp), dimension(:,:), allocatable :: B_sub_s, B_sub_theta_vmec, B_sub_zeta
-    real(rp), dimension(:,:), allocatable :: B_sup_theta_vmec, B_sup_zeta
-    real(rp), dimension(:), allocatable :: d_B_d_s_mnc, d_B_d_s_mns
-    real(rp), dimension(:), allocatable :: d_R_d_s_mnc, d_R_d_s_mns
-    real(rp), dimension(:), allocatable :: d_Z_d_s_mnc, d_Z_d_s_mns
-    real(rp), dimension(:), allocatable :: d_Lambda_d_s_mnc, d_Lambda_d_s_mns
-    real(rp), dimension(:,:), allocatable :: grad_s_X, grad_s_Y, grad_s_Z
-    real(rp), dimension(:,:), allocatable :: grad_theta_vmec_X, grad_theta_vmec_Y, grad_theta_vmec_Z
-    real(rp), dimension(:,:), allocatable :: grad_zeta_X, grad_zeta_Y, grad_zeta_Z
-    real(rp), dimension(:,:), allocatable :: grad_psi_X, grad_psi_Y, grad_psi_Z
-    real(rp), dimension(:,:), allocatable :: grad_alpha_X, grad_alpha_Y, grad_alpha_Z
-    real(rp), dimension(:,:), allocatable :: B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate
-    real(rp), dimension(:,:), allocatable :: B_cross_grad_s_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha_alternate
-    real(rp), dimension(:,:), allocatable :: grad_B_X, grad_B_Y, grad_B_Z
-    real(rp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
+    real(dp), dimension(:,:), allocatable :: B, sqrt_g, R, Z, B_dot_grad_theta_pest_over_B_dot_grad_zeta, temp2D
+    real(dp), dimension(:,:), allocatable :: d_B_d_theta_vmec, d_B_d_zeta, d_B_d_s
+    real(dp), dimension(:,:), allocatable :: d_R_d_theta_vmec, d_R_d_zeta, d_R_d_s
+    real(dp), dimension(:,:), allocatable :: d_Z_d_theta_vmec, d_Z_d_zeta, d_Z_d_s
+    real(dp), dimension(:,:), allocatable :: d_X_d_theta_vmec, d_X_d_zeta, d_X_d_s
+    real(dp), dimension(:,:), allocatable :: d_Y_d_theta_vmec, d_Y_d_zeta, d_Y_d_s
+    real(dp), dimension(:,:), allocatable :: d_Lambda_d_theta_vmec, d_Lambda_d_zeta, d_Lambda_d_s
+    real(dp), dimension(:,:), allocatable :: B_sub_s, B_sub_theta_vmec, B_sub_zeta
+    real(dp), dimension(:,:), allocatable :: B_sup_theta_vmec, B_sup_zeta
+    real(dp), dimension(:), allocatable :: d_B_d_s_mnc, d_B_d_s_mns
+    real(dp), dimension(:), allocatable :: d_R_d_s_mnc, d_R_d_s_mns
+    real(dp), dimension(:), allocatable :: d_Z_d_s_mnc, d_Z_d_s_mns
+    real(dp), dimension(:), allocatable :: d_Lambda_d_s_mnc, d_Lambda_d_s_mns
+    real(dp), dimension(:,:), allocatable :: grad_s_X, grad_s_Y, grad_s_Z
+    real(dp), dimension(:,:), allocatable :: grad_theta_vmec_X, grad_theta_vmec_Y, grad_theta_vmec_Z
+    real(dp), dimension(:,:), allocatable :: grad_zeta_X, grad_zeta_Y, grad_zeta_Z
+    real(dp), dimension(:,:), allocatable :: grad_psi_X, grad_psi_Y, grad_psi_Z
+    real(dp), dimension(:,:), allocatable :: grad_alpha_X, grad_alpha_Y, grad_alpha_Z
+    real(dp), dimension(:,:), allocatable :: B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate
+    real(dp), dimension(:,:), allocatable :: B_cross_grad_s_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha_alternate
+    real(dp), dimension(:,:), allocatable :: grad_B_X, grad_B_Y, grad_B_Z
+    real(dp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
     !*********************************************************************
     ! Read in everything from the vmec wout file using libstell.
     !*********************************************************************
@@ -470,13 +467,13 @@ contains
     ! Do some validation.
     !*********************************************************************
 
-    if (nalpha<1) then
-       print *,"Error! nalpha must be >= 1. Instead it is",nalpha
+    if (Eq_Obj%nx2<1) then
+       print *,"Error! Eq_Obj%nx2 must be >= 1. Instead it is",Eq_Obj%nx2
        stop
     end if
 
-    if (nzgrid<1) then
-       print *,"Error! nzgrid must be >= 1. Instead it is",nzgrid
+    if (Eq_Obj%nx3<1) then
+       print *,"Error! Eq_Obj%nx3 must be >= 1. Instead it is",Eq_Obj%nx3
        stop
     end if
 
@@ -498,7 +495,7 @@ contains
     ! Set up the coordinate grids.
     !*********************************************************************
 
-    alpha = [( ((j-1)*2*pi) / nalpha, j=1, nalpha )]
+    alpha = [( ((j-1)*2*pi) / Eq_Obj%nx2, j=1, Eq_Obj%nx2 )]
 
 !!$    if (number_of_field_periods_to_include > nfp) then
 !!$       print *,"Error! number_of_field_periods_to_include > nfp"
@@ -508,25 +505,25 @@ contains
 !!$    end if
     number_of_field_periods_to_include_final = number_of_field_periods_to_include
     if (number_of_field_periods_to_include <= 0) then
-       number_of_field_periods_to_include_final = nfp
+       number_of_field_periods_to_include_final = Eq_Obj%VMEC_Obj%nfp
        if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",nfp
     end if
 
-    zeta = [( zeta_center + (pi*j*number_of_field_periods_to_include_final)/(nfp*nzgrid), j=-nzgrid, nzgrid )]
+    zeta = [( zeta_center + (pi*j*number_of_field_periods_to_include_final)/(Eq_Obj%VMEC_Obj%nfp*Eq_Obj%nx3), j=-Eq_Obj%nx3, Eq_Obj%nx3 )]
 
     !*********************************************************************
     ! We know theta_pest = alpha + iota * zeta, but we need to determine
     ! theta_vmec = theta_pest - Lambda.
     !*********************************************************************
 
-    allocate(theta_vmec(nalpha, -nzgrid:nzgrid))
+    allocate(theta_vmec(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
 
     if (verbose) print *,"  Beginning root solves to determine theta_vmec."
     root_solve_absolute_tolerance = 1.0d-10
     root_solve_relative_tolerance = 1.0d-10
-    do iz = -nzgrid, nzgrid
+    do iz = -Eq_Obj%nx3, Eq_Obj%nx3
        zeta0 = zeta(iz)
-       do ia = 1,nalpha
+       do ia = 1,Eq_Obj%nx2
           theta_pest_target = alpha(ia) + iota * zeta0
           ! Guess that theta_vmec will be within 0.3 radians of theta_pest:
           theta_vmec_min = theta_pest_target - 0.3
@@ -546,7 +543,7 @@ contains
     end do
     if (verbose) then
        print *,"  Done with root solves. Here comes theta_vmec:"
-       do j = 1, nalpha
+       do j = 1, Eq_Obj%nx2
           print *,theta_vmec(j,:)
        end do
     end if
@@ -568,28 +565,28 @@ contains
     d_B_d_par = 0
 
 
-    allocate(B(nalpha,-nzgrid:nzgrid))
-    allocate(temp2D(nalpha,-nzgrid:nzgrid))
-    allocate(sqrt_g(nalpha,-nzgrid:nzgrid))
-    allocate(R(nalpha,-nzgrid:nzgrid))
-    allocate(Z(nalpha,-nzgrid:nzgrid))
-    allocate(d_B_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_B_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_B_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(d_R_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_R_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_R_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(d_Z_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_Z_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_Z_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(d_Lambda_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_Lambda_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_Lambda_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(B_sub_s(nalpha,-nzgrid:nzgrid))
-    allocate(B_sub_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(B_sub_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(B_sup_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(B_sup_zeta(nalpha,-nzgrid:nzgrid))
+    allocate(B(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(temp2D(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(sqrt_g(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(R(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(Z(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_B_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_B_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_B_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_R_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_R_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_R_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Z_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Z_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Z_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Lambda_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Lambda_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Lambda_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_sub_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_sub_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_sub_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_sup_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_sup_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
 
     allocate(d_B_d_s_mnc(ns))
     allocate(d_B_d_s_mns(ns))
@@ -600,43 +597,44 @@ contains
     allocate(d_Lambda_d_s_mnc(ns))
     allocate(d_Lambda_d_s_mns(ns))
 
-    allocate(d_X_d_s(nalpha, -nzgrid:nzgrid))
-    allocate(d_X_d_theta_vmec(nalpha, -nzgrid:nzgrid))
-    allocate(d_X_d_zeta(nalpha, -nzgrid:nzgrid))
-    allocate(d_Y_d_s(nalpha, -nzgrid:nzgrid))
-    allocate(d_Y_d_theta_vmec(nalpha, -nzgrid:nzgrid))
-    allocate(d_Y_d_zeta(nalpha, -nzgrid:nzgrid))
+    allocate(d_X_d_s(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_X_d_theta_vmec(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_X_d_zeta(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Y_d_s(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Y_d_theta_vmec(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_Y_d_zeta(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
 
-    allocate(grad_s_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_s_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_s_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_theta_vmec_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_theta_vmec_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_theta_vmec_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_zeta_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_zeta_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_zeta_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_psi_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_psi_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_psi_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_alpha_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_alpha_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_alpha_Z(nalpha, -nzgrid:nzgrid))
+    allocate(grad_s_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_s_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_s_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_theta_vmec_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_theta_vmec_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_theta_vmec_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_zeta_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_zeta_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_zeta_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_psi_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_psi_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_psi_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_alpha_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_alpha_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_alpha_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
     
-    allocate(B_X(nalpha, -nzgrid:nzgrid))
-    allocate(B_Y(nalpha, -nzgrid:nzgrid))
-    allocate(B_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_B_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_B_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_B_Z(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_B_dot_grad_alpha(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_B_dot_grad_alpha_alternate(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_s_dot_grad_alpha(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_s_dot_grad_alpha_alternate(nalpha, -nzgrid:nzgrid))
+    allocate(B_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_B_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_B_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_B_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_cross_grad_B_dot_grad_alpha(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_cross_grad_B_dot_grad_alpha_alternate(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_cross_grad_s_dot_grad_alpha(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_cross_grad_s_dot_grad_alpha_alternate(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
 
     B = 0
     sqrt_g = 0
     R = 0
+    Z = 0
     d_B_d_theta_vmec = 0
     d_B_d_zeta = 0
     d_B_d_s = 0
@@ -721,8 +719,8 @@ contains
 
        ! End of evaluating radial derivatives.
 
-       do ia = 1,nalpha
-          do iz = -nzgrid, nzgrid
+       do ia = 1,Eq_Obj%nx2
+          do iz = -Eq_Obj%nx3, Eq_Obj%nx3
              angle = m * theta_vmec(ia,iz) - n * nfp * zeta(iz)
              cos_angle = cos(angle)
              sin_angle = sin(angle)
@@ -858,8 +856,8 @@ contains
 
           ! End of evaluating radial derivatives.
 
-          do ia = 1,nalpha
-             do iz = -nzgrid, nzgrid
+          do ia = 1,Eq_Obj%nx2
+             do iz = -Eq_Obj%nx3, Eq_Obj%nx3
                 angle = m * theta_vmec(ia,iz) - n * nfp * zeta(iz)
                 cos_angle = cos(angle)
                 sin_angle = sin(angle)
@@ -966,7 +964,7 @@ contains
     !*********************************************************************
     
     if (test) then
-      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(nalpha, -nzgrid:nzgrid))
+      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
       ! Compute (B dot grad theta_pest) / (B dot grad zeta):
       B_dot_grad_theta_pest_over_B_dot_grad_zeta = &
         & (B_sup_theta_vmec * (1 + d_Lambda_d_theta_vmec) + B_sup_zeta * d_Lambda_d_zeta) / B_sup_zeta 
@@ -982,7 +980,7 @@ contains
 
     sqrt_s = sqrt(normalized_toroidal_flux_used)
 
-    do iz = -nzgrid, nzgrid
+    do iz = -Eq_Obj%nx3, Eq_Obj%nx3
        cos_angle = cos(zeta(iz))
        sin_angle = sin(zeta(iz))
 
@@ -1014,14 +1012,14 @@ contains
 
     if (test) then
       ! Sanity check: grad_zeta_X should be -sin(zeta) / R:
-      do iz = -nzgrid,nzgrid
+      do iz = -Eq_Obj%nx3,Eq_Obj%nx3
          temp2D(:,iz) = -sin(zeta(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_X, temp2D, .false., 1.0e-2, 'grad_zeta_X')
       grad_zeta_X = temp2D ! We might as well use the exact value, which is in temp2D.
 
       ! Sanity check: grad_zeta_Y should be cos(zeta) / R:
-      do iz = -nzgrid,nzgrid
+      do iz = -Eq_Obj%nx3,Eq_Obj%nx3
          temp2D(:,iz) = cos(zeta(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_Y, temp2D, .false., 1.0e-2, 'grad_zeta_Y')
@@ -1041,7 +1039,7 @@ contains
     grad_psi_Z = grad_s_Z * edge_toroidal_flux_over_2pi
 
     ! Form grad alpha = grad (theta_vmec + Lambda - iota * zeta)
-    do iz = -nzgrid,nzgrid
+    do iz = -Eq_Obj%nx3,Eq_Obj%nx3
        grad_alpha_X(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_X(:,iz)
        grad_alpha_Y(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_Y(:,iz)
        grad_alpha_Z(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_Z(:,iz)
@@ -1127,7 +1125,7 @@ contains
          .false., 1.0e-2, 'B_cross_grad_s_dot_grad_alpha')
     end if
 
-    do iz = -nzgrid,nzgrid
+    do iz = -Eq_Obj%nx3,Eq_Obj%nx3
        B_cross_grad_B_dot_grad_alpha(:,iz) = 0 &
             + (B_sub_s(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_zeta(:,iz) - iota) &
             + B_sub_theta_vmec(:,iz) * d_B_d_zeta(:,iz) * (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) &
@@ -1261,7 +1259,7 @@ contains
 
     deallocate(theta_vmec)
 
-    if (verbose) print *,"Leaving vmec2sfl."
+    if (verbose) print *,"Leaving compute_sfl_quantities."
 
 
   contains
@@ -1275,18 +1273,18 @@ contains
 
       implicit none
 
-      real(rp), dimension(nalpha,-nzgrid:nzgrid) :: array1, array2
-      real(rp) :: tolerance
+      real(dp), dimension(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3) :: array1, array2
+      real(dp) :: tolerance
       character(len=*) :: name
       logical :: should_be_0
-      real(rp) :: max_value, max_difference
+      real(dp) :: max_value, max_difference
 
       if (should_be_0) then
          max_value = maxval(abs(array1))
          if (verbose) print *,"  maxval(abs(",trim(name),")):",max_value,"(should be << 1.)"
          if (max_value > tolerance) then
             print *,"Error! ",trim(name)," should be 0, but instead it is:"
-            do ia = 1,nalpha
+            do ia = 1,Eq_Obj%nx2
                print *,array1(ia,:)
             end do
             stop
@@ -1296,15 +1294,15 @@ contains
          if (verbose) print *,"  Relative difference between two methods for computing ",trim(name),":",max_difference,"(should be << 1.)"
          if (max_difference > tolerance) then
             print *,"Error! Two methods for computing ",trim(name)," disagree. Here comes method 1:"
-            do ia = 1,nalpha
+            do ia = 1,Eq_Obj%nx2
                print *,array1(ia,:)
             end do
             print *,"Here comes method 2:"
-            do ia = 1,nalpha
+            do ia = 1,Eq_Obj%nx2
                print *,array2(ia,:)
             end do
             print *,"Here comes the difference:"
-            do ia = 1,nalpha
+            do ia = 1,Eq_Obj%nx2
                print *,array1(ia,:) - array2(ia,:)
             end do
             stop
@@ -1313,7 +1311,7 @@ contains
 
     end subroutine test_arrays
 
-  end subroutine vmec2sfl
+  end subroutine compute_sfl_quantities
 
   ! --------------------------------------------------------------------------
 
@@ -1327,8 +1325,8 @@ contains
 
     implicit none
     
-    real(rp) :: theta_vmec_try, fzero_residual
-    real(rp) :: angle, sinangle, cosangle
+    real(dp) :: theta_vmec_try, fzero_residual
+    real(dp) :: angle, sinangle, cosangle
     integer :: imn, which_surface
 
     ! residual = (theta_pest based on theta_vmec_try) - theta_pest_target = theta_vmec_try + Lambda - theta_pest_target
