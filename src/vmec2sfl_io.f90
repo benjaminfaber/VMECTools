@@ -104,9 +104,9 @@ contains
     implicit none
     integer, intent(in) :: ntgrid, nzgrid
     real(rp), intent(in) :: nfpi, nfp 
-    real(rp) :: iota, theta, theta_j, theta_jp1, theta_interp, dt1, dt2, delta, Rsurf_interp, Zsurf_interp
-    integer i, j, jp1, k, iunit_R, iunit_Z, iunit_cyl, theta_index
-    character(len=2000) :: filename_R, filename_Z, filename_cyl
+    real(rp) :: iota, theta, theta_j, theta_jp1, theta_interp, dt1, dt2, delta, Rsurf_interp, Zsurf_interp, jac_surf_interp
+    integer i, j, jp1, k, iunit_R, iunit_Z, iunit_cyl, iunit_jac, theta_index
+    character(len=2000) :: filename_R, filename_Z, filename_cyl, filename_jac
     real(rp), parameter :: pi = 4.0*atan(1.0)
     real(rp), parameter :: pi2 = 8.0*atan(1.0)
     real(rp), parameter :: eps = 1e-8
@@ -117,12 +117,15 @@ contains
     filename_R = trim(outdir)//"R_surface_"//trim(tag)//".dat"
     filename_Z = trim(outdir)//"Z_surface_"//trim(tag)//".dat"
     filename_cyl = trim(outdir)//"cyl_surface_"//trim(tag)//".dat"
+    filename_jac = trim(outdir)//"jac_surface"//trim(tag)//".dat"
     iunit_R = 500
     iunit_Z = 600
     iunit_cyl = 700
+    iunit_jac = 800
     open(file=trim(filename_R),unit=iunit_R)
     open(file=trim(filename_Z),unit=iunit_Z)
     open(file=trim(filename_cyl),unit=iunit_cyl)
+    open(file=trim(filename_jac),unit=iunit_jac)
     write (iunit_cyl,'(A)') '&parameters'
     write (iunit_cyl,'(A,F12.7)') '!s0 = ', normalized_toroidal_flux_used 
     write (iunit_cyl,'(A,F12.7)') '!minor_r = ', L_reference
@@ -169,16 +172,20 @@ contains
         end if       
         Rsurf_interp = real(ntgrid)/pi2*(dt2*Rsurf(j,k) + dt1*Rsurf(jp1,k))
         Zsurf_interp = real(ntgrid)/pi2*(dt2*Zsurf(j,k) + dt1*Zsurf(jp1,k))
+        jac_surf_interp = real(ntgrid)/pi2*(dt2*abs(1.0/jac_gist_inv(j,k)) + dt1*abs(1.0/jac_gist_inv(jp1,k)))
         write (iunit_R,'(2(I5,2x),F12.7)') theta_index+1, k+nzgrid+1, Rsurf_interp
         write (iunit_Z,'(2(I5,2x),F12.7)') theta_index+1, k+nzgrid+1, Zsurf_interp
+        write (iunit_jac,'(2(I5,2x),F12.7)') theta_index+1, k+nzgrid+1, jac_surf_interp
         write (iunit_cyl,'(3(F12.7,2x))') Rsurf(j,k), Zsurf(j,k), -zeta(k)
       end do
       write (iunit_R,'(A)') " "
       write (iunit_Z,'(A)') " "
+      write (iunit_jac,'(A)') " "
       write (iunit_cyl,'(A)') " "
     end do
     close(iunit_R)
     close(iunit_Z)
+    close(iunit_jac)
     close(iunit_cyl)
   end subroutine write_RZ_surface
 end module vmec2sfl_io_mod
