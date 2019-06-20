@@ -166,41 +166,125 @@ contains
     allocate(eq%d_B_d_x1(eq%nx3,eq%nx2,eq%nx1))
     allocate(eq%d_B_d_x2(eq%nx3,eq%nx2,eq%nx1))
     allocate(eq%d_B_d_x3(eq%nx3,eq%nx2,eq%nx1))
+
+    !*********************************************************************
+    ! Do some validation.
+    !*********************************************************************
+    if (desired_normalized_toroidal_flux <= 0) then
+       print *,"Error! desired_normalized_toroidal_flux must be >0. Instead it is",desired_normalized_toroidal_flux
+       stop
+    end if
+
+    if (desired_normalized_toroidal_flux > 1) then
+       print *,"Error! desired_normalized_toroidal_flux must be <= 1. Instead it is",desired_normalized_toroidal_flux
+       stop
+    end if
+
+    !*********************************************************************
+    ! Read in everything from the vmec wout file using libstell.
+    !*********************************************************************
+    
+    !nfp = nfp_vmec
+    !local_nfp = nfp
+
+    ! There is a bug in libstell read_wout_file for ASCII-format wout files, in which the xm_nyq and xn_nyq arrays are sometimes
+    ! not populated. The next few lines here provide a workaround:
+    if (maxval(abs(eq%vmec%xm_nyq)) < 1 .and. maxval(abs(eq%vmec%xn_nyq)) < 1) then
+       if (eq%vmec%mnmax_nyq == eq%vmec%mnmax) then
+          if (verbose) print *,"xm_nyq and xn_nyq arrays are not populated in the wout file. Using xm and xn instead."
+          eq%vmec%xm_nyq = eq%vmec%xm
+          eq%vmec%xn_nyq = eq%vmec%xn
+       else
+          print *,"Error! xm_nyq and xn_nyq arrays are not populated in the wout file, and mnmax_nyq != mnmax."
+          stop
+       end if
+    end if
+
+    edge_toroidal_flux_over_2pi = eq%vmec%phi(ns) / (2*pi) * eq%vmec%isigng ! isigns is called signgs in the wout*.nc file. Why is this signgs here?
+
+    ! this gives the sign of the edge toroidal flux
+    sign_toroidal_flux = int(sign(1.1,edge_toroidal_flux_over_2pi))
+    write (*,*) 'sign_toroidal_flux', sign_toroidal_flux
+
+    ! Set reference length and magnetic field for GS2's normalization, 
+    ! using the choices made by Pavlos Xanthopoulos in GIST:
+    eq%major_R = Rmajor
+    eq%minor_r = Aminor ! Note that 'Aminor' in read_wout_mod is called 'Aminor_p' in the wout*.nc file.
+
+    if (norm_type == 'minor_r') then
+      eq%L_reference => eq%minor_r
+    else
+      eq%L_reference => eq%major_R
+    end if
+
+    eq%B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (eq%L_reference * eq%L_reference)
+    if (verbose) then
+       print *,"  Reference length for normalization:",eq%L_reference," meters."
+       print *,"  Reference magnetic field strength normalization:",eq%B_reference," Tesla."
+    end if
+
+    ! --------------------------------------------------------------------------------
+    ! Do some sanity checking to ensure the VMEC arrays have some expected properties.
+    ! --------------------------------------------------------------------------------
+
+    ! 'phi' is vmec's array of the toroidal flux (not divided by 2pi!) on vmec's radial grid.
+    if (abs(eq%vmec%phi(1)) > 1d-14) then
+       print *,"Error! VMEC phi array does not begin with 0."
+       print *,"phi:",eq%vmec%phi
+       stop
+    end if
+
+    dphi = eq%vmec%phi(2) - eq%vmec%phi(1)
+    do j=3,eq%vmec%ns
+       if (abs(eq%vmec%phi(j)-eq%vmec%phi(j-1)-dphi) > 1d-11) then
+          print *,"Error! VMEC phi array is not uniformly spaced."
+          print *,"phi:",eq%vmec%phi
+          stop
+       end if
+    end do
+
+    ! The variable called 'phips' in the wout file is called just 'phip' in read_wout_mod.F.
+    ! phips is on the half-mesh, so skip first point.
+    do j=2,eq%vmec%ns
+       if (abs(eq%vmec%phip(j)+eq%vmec%phi(ns)/(2*pi)) > 1d-11) then
+          print *,"Error! VMEC phips array is not constant and equal to -phi(ns)/(2*pi)."
+          print *,"phip(s):",eq%vmec%phip
+          stop
+       end if
+    end do
+
+    ! The first mode in the m and n arrays should be m=n=0:
+    if (ev%vmec%xm(1) .ne. 0) stop "First element of xm in the wout file should be 0."
+    if (ev%vmec%xn(1) .ne. 0) stop "First element of xn in the wout file should be 0."
+    if (ev%vmec%xm_nyq(1) .ne. 0) stop "First element of xm_nyq in the wout file should be 0."
+    if (ev%vmec%xn_nyq(1) .ne. 0) stop "First element of xn_nyq in the wout file should be 0."
+
+    ! Lambda should be on the half mesh, so its value at radial index 1 should be 0 for all (m,n)
+    if (maxval(abs(ev%vmec%lmns(:,1))) > 0) then
+       print *,"Error! Expected lmns to be on the half mesh, but its value at radial index 1 is nonzero."
+       print *,"Here comes lmns(:,1):", eq%vmec%lmns(:,1)
+       stop
+    end if
+    if (ev%vmec%lasym) then
+       if (maxval(abs(ev%vmec%lmnc(:,1))) > 0) then
+          print *,"Error! Expected lmnc to be on the half mesh, but its value at radial index 1 is nonzero."
+          print *,"Here comes lmnc(:,1):", eq%vmec%lmnc(:,1)
+          stop
+       end if
+    end if
+
+    ! --------------------------------------------------------------------------------
+    ! End of sanity checks.
+    ! --------------------------------------------------------------------------------
+
   end function
 
   type(Eq_Obj) function create_from_VMEC_file(VMEC_file) result(eq)
     character(len=2000), intent(in) :: VMEC_file
+    type(VMEC_Obj) :: vmec
 
-    eq%vmec = create_VMEC_Obj(VMEC_file)
-    if(allocated(eq%x1)) deallocate(eq%x1)
-    if(allocated(eq%x2)) deallocate(eq%x2)
-    if(allocated(eq%x3)) deallocate(eq%x3)
-    if(allocated(eq%bmag)) deallocate(eq%bmag)
-    if(allocated(eq%jac)) deallocate(eq%jac)
-    if(allocated(eq%g11)) deallocate(eq%g11)
-    if(allocated(eq%g12)) deallocate(eq%g12)
-    if(allocated(eq%g22)) deallocate(eq%g22)
-    if(allocated(eq%g13)) deallocate(eq%g13)
-    if(allocated(eq%g23)) deallocate(eq%g23)
-    if(allocated(eq%g33)) deallocate(eq%g33)
-    if(allocated(eq%d_B_d_x1)) deallocate(eq%d_B_d_x1)
-    if(allocated(eq%d_B_d_x2)) deallocate(eq%d_B_d_x2)
-    if(allocated(eq%d_B_d_x3)) deallocate(eq%d_B_d_x3)
-
-    allocate(eq%x1(eq%nx1))
-    allocate(eq%x2(eq%nx2))
-    allocate(eq%x3(eq%nx3))
-    allocate(eq%bmag(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%jac(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%g11(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%g12(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%g22(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%g13(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%g23(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%g33(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%d_B_d_x1(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%d_B_d_x2(eq%nx3,eq%nx2,eq%nx1))
-    allocate(eq%d_B_d_x3(eq%nx3,eq%nx2,eq%nx1))
+    vmec = create_VMEC_Obj(VMEC_file)
+    eq = create_from_VMEC_Obj(vmec)
   end function
  
   subroutine destroy_Eq_Obj(eq)

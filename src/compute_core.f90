@@ -28,9 +28,9 @@ module compute_core
 contains
 
   subroutine compute_surface_quantities(desired_normalized_toroidal_flux,&
-    &vmec_surface_option, Eq_Obj)
+    &vmec_surface_option, eq)
 
-    !use read_wout_mod, nzgrid_vmec => Eq_Obj%nx3 ! VMEC has a variable ngzrid which conflicts with our Eq_Obj%nx3, so rename vmec's version.
+    !use read_wout_mod, nzgrid_vmec => eq%nx3 ! VMEC has a variable ngzrid which conflicts with our eq%nx3, so rename vmec's version.
 
     implicit none
     !*********************************************************************
@@ -48,7 +48,7 @@ contains
     ! Other values of vmec_surface_option will cause the program to abort with an error.
     integer, intent(in) :: vmec_surface_option
 
-    type(Eq_Object), intent(inout) :: Eq_Obj
+    type(Eq_Object), intent(inout) :: eq
 
 
     !***************************************************************************
@@ -85,115 +85,6 @@ contains
 
     if (verbose) print *,"Entering subroutine compute_surface_quantities."
 
-    !*********************************************************************
-    ! Do some validation.
-    !*********************************************************************
-    if (desired_normalized_toroidal_flux <= 0) then
-       print *,"Error! desired_normalized_toroidal_flux must be >0. Instead it is",desired_normalized_toroidal_flux
-       stop
-    end if
-
-    if (desired_normalized_toroidal_flux > 1) then
-       print *,"Error! desired_normalized_toroidal_flux must be <= 1. Instead it is",desired_normalized_toroidal_flux
-       stop
-    end if
-
-    !*********************************************************************
-    ! Read in everything from the vmec wout file using libstell.
-    !*********************************************************************
-    
-    !nfp = nfp_vmec
-    !local_nfp = nfp
-
-    ! There is a bug in libstell read_wout_file for ASCII-format wout files, in which the xm_nyq and xn_nyq arrays are sometimes
-    ! not populated. The next few lines here provide a workaround:
-    if (maxval(abs(xm_nyq)) < 1 .and. maxval(abs(xn_nyq)) < 1) then
-       if (mnmax_nyq == mnmax) then
-          if (verbose) print *,"xm_nyq and xn_nyq arrays are not populated in the wout file. Using xm and xn instead."
-          xm_nyq = xm
-          xn_nyq = xn
-       else
-          print *,"Error! xm_nyq and xn_nyq arrays are not populated in the wout file, and mnmax_nyq != mnmax."
-          stop
-       end if
-    end if
-
-    edge_toroidal_flux_over_2pi = Eq_Obj%VMEC_Obj%phi(ns) / (2*pi) * Eq_Obj%VMEC_Obj%isigng ! isigns is called signgs in the wout*.nc file. Why is this signgs here?
-
-    ! this gives the sign of the edge toroidal flux
-    sign_toroidal_flux = int(sign(1.1,edge_toroidal_flux_over_2pi))
-    write (*,*) 'sign_toroidal_flux', sign_toroidal_flux
-
-    ! Set reference length and magnetic field for GS2's normalization, 
-    ! using the choices made by Pavlos Xanthopoulos in GIST:
-    Eq_Obj%major_R = Rmajor
-    Eq_Obj%minor_r = Aminor ! Note that 'Aminor' in read_wout_mod is called 'Aminor_p' in the wout*.nc file.
-
-    if (norm_type == 'minor_r') then
-      Eq_Obj%L_reference => Eq_Obj%minor_r
-    else
-      Eq_Obj%L_reference => Eq_Obj%major_R
-    end if
-
-    Eq_Obj%B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (Eq_Obj%L_reference * Eq_Obj%L_reference)
-    if (verbose) then
-       print *,"  Reference length for normalization:",Eq_Obj%L_reference," meters."
-       print *,"  Reference magnetic field strength normalization:",Eq_Obj%B_reference," Tesla."
-    end if
-
-    ! --------------------------------------------------------------------------------
-    ! Do some sanity checking to ensure the VMEC arrays have some expected properties.
-    ! --------------------------------------------------------------------------------
-
-    ! 'phi' is vmec's array of the toroidal flux (not divided by 2pi!) on vmec's radial grid.
-    if (abs(phi(1)) > 1d-14) then
-       print *,"Error! VMEC phi array does not begin with 0."
-       print *,"phi:",phi
-       stop
-    end if
-
-    dphi = phi(2) - phi(1)
-    do j=3,ns
-       if (abs(phi(j)-phi(j-1)-dphi) > 1d-11) then
-          print *,"Error! VMEC phi array is not uniformly spaced."
-          print *,"phi:",phi
-          stop
-       end if
-    end do
-
-    ! The variable called 'phips' in the wout file is called just 'phip' in read_wout_mod.F.
-    ! phips is on the half-mesh, so skip first point.
-    do j=2,ns
-       if (abs(phip(j)+phi(ns)/(2*pi)) > 1d-11) then
-          print *,"Error! VMEC phips array is not constant and equal to -phi(ns)/(2*pi)."
-          print *,"phip(s):",phip
-          stop
-       end if
-    end do
-
-    ! The first mode in the m and n arrays should be m=n=0:
-    if (xm(1) .ne. 0) stop "First element of xm in the wout file should be 0."
-    if (xn(1) .ne. 0) stop "First element of xn in the wout file should be 0."
-    if (xm_nyq(1) .ne. 0) stop "First element of xm_nyq in the wout file should be 0."
-    if (xn_nyq(1) .ne. 0) stop "First element of xn_nyq in the wout file should be 0."
-
-    ! Lambda should be on the half mesh, so its value at radial index 1 should be 0 for all (m,n)
-    if (maxval(abs(lmns(:,1))) > 0) then
-       print *,"Error! Expected lmns to be on the half mesh, but its value at radial index 1 is nonzero."
-       print *,"Here comes lmns(:,1):", lmns(:,1)
-       stop
-    end if
-    if (lasym) then
-       if (maxval(abs(lmnc(:,1))) > 0) then
-          print *,"Error! Expected lmnc to be on the half mesh, but its value at radial index 1 is nonzero."
-          print *,"Here comes lmnc(:,1):", lmnc(:,1)
-          stop
-       end if
-    end if
-
-    ! --------------------------------------------------------------------------------
-    ! End of sanity checks.
-    ! --------------------------------------------------------------------------------
 
     allocate(normalized_toroidal_flux_full_grid(ns))
     normalized_toroidal_flux_full_grid = [( real(j-1)/(ns-1), j=1,ns )]
@@ -352,10 +243,10 @@ contains
     ! we ended up choosing.
     !*********************************************************************
 
-    Eq_Obj%iota = iotas(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
-         + iotas(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
-    if (verbose) print *,"  iota =",Eq_Obj%iota
-    Eq_Obj%safety_factor_q = 1/Eq_Obj%iota
+    eq%iota = eq%vmec%iotas(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
+         + eq%vmec%iotas(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
+    if (verbose) print *,"  iota =",eq%iota
+    eq%safety_factor_q = 1/eq%iota
 
     allocate(d_iota_d_s_on_half_grid(ns))
     d_iota_d_s_on_half_grid = 0
@@ -369,12 +260,12 @@ contains
     if (verbose) print *,"  d iota / d s =",d_iota_d_s
     ! shat = (r/q)(dq/dr) where r = a sqrt(s).
     !      = - (r/iota) (d iota / d r) = -2 (s/iota) (d iota / d s)
-    Eq_Obj%shat = (-2 * normalized_toroidal_flux_used / iota) * d_iota_d_s
+    eq%shat = (-2 * normalized_toroidal_flux_used / eq%iota) * d_iota_d_s
 
     allocate(d_pressure_d_s_on_half_grid(ns))
     d_pressure_d_s_on_half_grid = 0
     ds = normalized_toroidal_flux_full_grid(2) - normalized_toroidal_flux_full_grid(1)
-    d_pressure_d_s_on_half_grid(2:ns) = (presf(2:ns) - presf(1:ns-1)) / ds
+    d_pressure_d_s_on_half_grid(2:ns) = (eq%vmec%presf(2:ns) - eq%vmec%presf(1:ns-1)) / ds
     d_pressure_d_s =  &
          d_pressure_d_s_on_half_grid(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
          + d_pressure_d_s_on_half_grid(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
@@ -389,21 +280,13 @@ contains
 !*******************************************************************************
 ! Subroutine compute_sfl_quantities
 !*******************************************************************************
-  subroutine compute_sfl_quantities(Eq_Obj%nx2, Eq_Obj%nx3, zeta_center, &
+  subroutine compute_sfl_quantities(zeta_center, &
     & number_of_field_periods_to_include,Eq_Obj)
-
-    use read_wout_mod, Eq_Obj%nx3_vmec => Eq_Obj%nx3  ! VMEC has a variable Eq_Obj%nx3 which conflicts with our Eq_Obj%nx3, so rename vmec's version.
 
     implicit none
     !***************************************************************************
     ! Input parameters
     !***************************************************************************
-
-    ! Eq_Obj%nx2 is the number of grid points in the alpha coordinate:
-    integer, intent(in) :: Eq_Obj%nx2
-
-    ! The zeta grid has Eq_Obj%nx3*2+1 points, including the "repeated" point at index -Eq_Obj%nx3 and +Eq_Obj%nx3.
-    integer, intent(in) :: Eq_Obj%nx3
 
     ! The zeta domain is centered at zeta_center. Setting zeta_center = 2*pi*N/nfp for any integer N should
     ! yield identical results to setting zeta_center = 0, where nfp is the number of field periods (as in VMEC).
@@ -419,7 +302,7 @@ contains
     ! Variables used internally by this subroutine
     !*********************************************************************
 
-    integer :: j, iz, ia, which_surface, isurf, m, n, imn, imn_nyq
+    integer :: j, iz, ia, which_surface, isurf, m, n, imn, imn_nyq, nzgrid, ns
     real(dp) :: angle, sin_angle, cos_angle, temp 
     real(dp), dimension(:,:), allocatable :: theta_vmec
     !integer :: ierr, iopen, fzero_flag
@@ -467,35 +350,23 @@ contains
     ! Do some validation.
     !*********************************************************************
 
-    if (Eq_Obj%nx2<1) then
-       print *,"Error! Eq_Obj%nx2 must be >= 1. Instead it is",Eq_Obj%nx2
+    if (eq%nx2<1) then
+       print *,"Error! eq%nx2 must be >= 1. Instead it is",eq%nx2
        stop
     end if
 
-    if (Eq_Obj%nx3<1) then
-       print *,"Error! Eq_Obj%nx3 must be >= 1. Instead it is",Eq_Obj%nx3
+    if (eq%nx3<1) then
+       print *,"Error! eq%nx3 must be >= 1. Instead it is",eq%nx3
        stop
     end if
 
-!    ! There is a bug in libstell read_wout_file for ASCII-format wout files, in which the xm_nyq and xn_nyq arrays are sometimes
-!    ! not populated. The next few lines here provide a workaround:
-!    if (maxval(abs(xm_nyq)) < 1 .and. maxval(abs(xn_nyq)) < 1) then
-!       if (mnmax_nyq == mnmax) then
-!          if (verbose) print *,"xm_nyq and xn_nyq arrays are not populated in the wout file. Using xm and xn instead."
-!          xm_nyq = xm
-!          xn_nyq = xn
-!       else
-!          print *,"Error! xm_nyq and xn_nyq arrays are not populated in the wout file, and mnmax_nyq != mnmax."
-!          stop
-!       end if
-!    end if
-
-
+    ns = eq%vmec%ns
     !*********************************************************************
     ! Set up the coordinate grids.
     !*********************************************************************
 
-    alpha = [( ((j-1)*2*pi) / Eq_Obj%nx2, j=1, Eq_Obj%nx2 )]
+    nzgrid = eq%nx3/2
+    eq%x2 = [( ((j-1)*2*pi) / eq%nx2, j=1, eq%nx2 )]
 
 !!$    if (number_of_field_periods_to_include > nfp) then
 !!$       print *,"Error! number_of_field_periods_to_include > nfp"
@@ -505,25 +376,25 @@ contains
 !!$    end if
     number_of_field_periods_to_include_final = number_of_field_periods_to_include
     if (number_of_field_periods_to_include <= 0) then
-       number_of_field_periods_to_include_final = Eq_Obj%VMEC_Obj%nfp
-       if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",nfp
+       number_of_field_periods_to_include_final = eq%vmec%nfp
+       if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",eq%vmec%nfp
     end if
 
-    zeta = [( zeta_center + (pi*j*number_of_field_periods_to_include_final)/(Eq_Obj%VMEC_Obj%nfp*Eq_Obj%nx3), j=-Eq_Obj%nx3, Eq_Obj%nx3 )]
+    eq%x3 = [( zeta_center + (pi*j*number_of_field_periods_to_include_final)/(eq%vmec%nfp*eq%nx3), j=-nzgrid, nzgrid )]
 
     !*********************************************************************
     ! We know theta_pest = alpha + iota * zeta, but we need to determine
     ! theta_vmec = theta_pest - Lambda.
     !*********************************************************************
 
-    allocate(theta_vmec(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(theta_vmec(eq%nx2, -nzgrid:nzgrid))
 
     if (verbose) print *,"  Beginning root solves to determine theta_vmec."
     root_solve_absolute_tolerance = 1.0d-10
     root_solve_relative_tolerance = 1.0d-10
-    do iz = -Eq_Obj%nx3, Eq_Obj%nx3
+    do iz = -nzgrid, nzgrid
        zeta0 = zeta(iz)
-       do ia = 1,Eq_Obj%nx2
+       do ia = 1,eq%nx2
           theta_pest_target = alpha(ia) + iota * zeta0
           ! Guess that theta_vmec will be within 0.3 radians of theta_pest:
           theta_vmec_min = theta_pest_target - 0.3
@@ -543,7 +414,7 @@ contains
     end do
     if (verbose) then
        print *,"  Done with root solves. Here comes theta_vmec:"
-       do j = 1, Eq_Obj%nx2
+       do j = 1, eq%nx2
           print *,theta_vmec(j,:)
        end do
     end if
@@ -565,28 +436,28 @@ contains
     d_B_d_par = 0
 
 
-    allocate(B(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(temp2D(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(sqrt_g(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(R(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(Z(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_B_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_B_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_B_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_R_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_R_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_R_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Z_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Z_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Z_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Lambda_d_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Lambda_d_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Lambda_d_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_sub_s(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_sub_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_sub_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_sup_theta_vmec(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_sup_zeta(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B(eq%nx2,-nzgrid:nzgrid))
+    allocate(temp2D(eq%nx2,-nzgrid:nzgrid))
+    allocate(sqrt_g(eq%nx2,-nzgrid:nzgrid))
+    allocate(R(eq%nx2,-nzgrid:nzgrid))
+    allocate(Z(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_B_d_theta_vmec(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_B_d_zeta(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_B_d_s(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_R_d_theta_vmec(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_R_d_zeta(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_R_d_s(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_Z_d_theta_vmec(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_Z_d_zeta(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_Z_d_s(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_Lambda_d_theta_vmec(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_Lambda_d_zeta(eq%nx2,-nzgrid:nzgrid))
+    allocate(d_Lambda_d_s(eq%nx2,-nzgrid:nzgrid))
+    allocate(B_sub_s(eq%nx2,-nzgrid:nzgrid))
+    allocate(B_sub_theta_vmec(eq%nx2,-nzgrid:nzgrid))
+    allocate(B_sub_zeta(eq%nx2,-nzgrid:nzgrid))
+    allocate(B_sup_theta_vmec(eq%nx2,-nzgrid:nzgrid))
+    allocate(B_sup_zeta(eq%nx2,-nzgrid:nzgrid))
 
     allocate(d_B_d_s_mnc(ns))
     allocate(d_B_d_s_mns(ns))
@@ -597,39 +468,39 @@ contains
     allocate(d_Lambda_d_s_mnc(ns))
     allocate(d_Lambda_d_s_mns(ns))
 
-    allocate(d_X_d_s(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_X_d_theta_vmec(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_X_d_zeta(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Y_d_s(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Y_d_theta_vmec(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(d_Y_d_zeta(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(d_X_d_s(eq%nx2, -nzgrid:nzgrid))
+    allocate(d_X_d_theta_vmec(eq%nx2, -nzgrid:nzgrid))
+    allocate(d_X_d_zeta(eq%nx2, -nzgrid:nzgrid))
+    allocate(d_Y_d_s(eq%nx2, -nzgrid:nzgrid))
+    allocate(d_Y_d_theta_vmec(eq%nx2, -nzgrid:nzgrid))
+    allocate(d_Y_d_zeta(eq%nx2, -nzgrid:nzgrid))
 
-    allocate(grad_s_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_s_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_s_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_theta_vmec_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_theta_vmec_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_theta_vmec_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_zeta_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_zeta_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_zeta_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_psi_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_psi_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_psi_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_alpha_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_alpha_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_alpha_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(grad_s_X(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_s_Y(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_s_Z(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_theta_vmec_X(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_theta_vmec_Y(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_theta_vmec_Z(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_zeta_X(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_zeta_Y(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_zeta_Z(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_psi_X(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_psi_Y(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_psi_Z(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_alpha_X(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_alpha_Y(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_alpha_Z(eq%nx2, -nzgrid:nzgrid))
     
-    allocate(B_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_B_X(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_B_Y(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(grad_B_Z(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_cross_grad_B_dot_grad_alpha(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_cross_grad_B_dot_grad_alpha_alternate(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_cross_grad_s_dot_grad_alpha(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
-    allocate(B_cross_grad_s_dot_grad_alpha_alternate(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+    allocate(B_X(eq%nx2, -nzgrid:nzgrid))
+    allocate(B_Y(eq%nx2, -nzgrid:nzgrid))
+    allocate(B_Z(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_B_X(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_B_Y(eq%nx2, -nzgrid:nzgrid))
+    allocate(grad_B_Z(eq%nx2, -nzgrid:nzgrid))
+    allocate(B_cross_grad_B_dot_grad_alpha(eq%nx2, -nzgrid:nzgrid))
+    allocate(B_cross_grad_B_dot_grad_alpha_alternate(eq%nx2, -nzgrid:nzgrid))
+    allocate(B_cross_grad_s_dot_grad_alpha(eq%nx2, -nzgrid:nzgrid))
+    allocate(B_cross_grad_s_dot_grad_alpha_alternate(eq%nx2, -nzgrid:nzgrid))
 
     B = 0
     sqrt_g = 0
@@ -659,22 +530,22 @@ contains
     !*********************************************************************
     
     do imn_nyq = 1, mnmax_nyq ! All the quantities we need except R, Z, and Lambda use the _nyq mode numbers.
-       m = xm_nyq(imn_nyq)
-       n = xn_nyq(imn_nyq)/nfp
+       m = eq%vmec%xm_nyq(imn_nyq)
+       n = eq%vmec%xn_nyq(imn_nyq)/eq%vmec%nfp
 
-       if (abs(m) >= mpol .or. abs(n) > ntor) then
+       if (abs(m) >= eq%vmec%mpol .or. abs(n) > eq%vmec%ntor) then
           non_Nyquist_mode_available = .false.
        else
           non_Nyquist_mode_available = .true.
           ! Find the imn in the non-Nyquist arrays that corresponds to the same m and n.
           found_imn = .false.
           do imn = 1,mnmax
-             if (xm(imn)==m .and. xn(imn)==n*nfp) then
+             if (eq%vmec%xm(imn)==m .and. eq%vmec%xn(imn)==n*eq%vmec%nfp) then
                 found_imn = .true.
                 exit
              end if
           end do
-          if ((xm(imn) .ne. m) .or. (xn(imn) .ne. n*nfp)) stop "Something went wrong!"
+          if ((eq%vmec%xm(imn) .ne. m) .or. (eq%vmec%xn(imn) .ne. n*eq%vmec%nfp)) stop "Something went wrong!"
           if (.not. found_imn) stop "Error! imn could not be found matching the given imn_nyq."
        end if
 
@@ -692,22 +563,22 @@ contains
        ! B and Lambda are on the half mesh, so their radial derivatives are on the full mesh.
        ! R and Z are on the full mesh, so their radial derivatives are on the half mesh.
 
-       d_B_d_s_mnc(2:ns-1) = (bmnc(imn_nyq,3:ns) - bmnc(imn_nyq,2:ns-1)) / ds
+       d_B_d_s_mnc(2:ns-1) = (eq%vmec%bmnc(imn_nyq,3:ns) - eq%vmec%bmnc(imn_nyq,2:ns-1)) / ds
        ! Simplistic extrapolation at the endpoints:
        d_B_d_s_mnc(1) = d_B_d_s_mnc(2)
        d_B_d_s_mnc(ns) = d_B_d_s_mnc(ns-1)
 
        if (non_Nyquist_mode_available) then
           ! R is on the full mesh:
-          d_R_d_s_mnc(2:ns) = (rmnc(imn,2:ns) - rmnc(imn,1:ns-1)) / ds
+          d_R_d_s_mnc(2:ns) = (eq%vmec%rmnc(imn,2:ns) - eq%vmec%rmnc(imn,1:ns-1)) / ds
           d_R_d_s_mnc(1) = 0
 
           ! Z is on the full mesh:
-          d_Z_d_s_mns(2:ns) = (zmns(imn,2:ns) - zmns(imn,1:ns-1)) / ds
+          d_Z_d_s_mns(2:ns) = (eq%vmec%zmns(imn,2:ns) - eq%vmec%zmns(imn,1:ns-1)) / ds
           d_Z_d_s_mns(1) = 0
 
           ! Lambda is on the half mesh:
-          d_Lambda_d_s_mns(2:ns-1) = (lmns(imn,3:ns) - lmns(imn,2:ns-1)) / ds
+          d_Lambda_d_s_mns(2:ns-1) = (eq%vmec%lmns(imn,3:ns) - eq%vmec%lmns(imn,2:ns-1)) / ds
           ! Simplistic extrapolation at the endpoints:
           d_Lambda_d_s_mns(1) = d_Lambda_d_s_mns(2)
           d_Lambda_d_s_mns(ns) = d_Lambda_d_s_mns(ns-1)
@@ -719,9 +590,9 @@ contains
 
        ! End of evaluating radial derivatives.
 
-       do ia = 1,Eq_Obj%nx2
-          do iz = -Eq_Obj%nx3, Eq_Obj%nx3
-             angle = m * theta_vmec(ia,iz) - n * nfp * zeta(iz)
+       do ia = 1,eq%nx2
+          do iz = -nzgrid,nzgrid
+             angle = m * theta_vmec(ia,iz) - n * eq%vmec%nfp * zeta(iz)
              cos_angle = cos(angle)
              sin_angle = sin(angle)
 
@@ -732,7 +603,7 @@ contains
                 temp = temp*scale_factor
                 B(ia,iz) = B(ia,iz) + temp * cos_angle
                 d_B_d_theta_vmec(ia,iz) = d_B_d_theta_vmec(ia,iz) - m * temp * sin_angle
-                d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) + n * nfp * temp * sin_angle       
+                d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) + n * eq%vmec%nfp * temp * sin_angle       
 
                 ! Handle Jacobian:
                 temp = gmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
@@ -779,21 +650,21 @@ contains
                    temp = temp*scale_factor
                    R(ia,iz) = R(ia,iz) + temp * cos_angle
                    d_R_d_theta_vmec(ia,iz) = d_R_d_theta_vmec(ia,iz) - temp * m * sin_angle
-                   d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  + temp * n * nfp * sin_angle
+                   d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  + temp * n * eq%vmec%nfp * sin_angle
 
                    ! Handle Z, which is on the full mesh
                    temp = zmns(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                    temp = temp*scale_factor
                    Z(ia,iz) = Z(ia,iz) + temp * sin_angle  ! We don't actually need Z itself, only derivatives of Z.
                    d_Z_d_theta_vmec(ia,iz) = d_Z_d_theta_vmec(ia,iz) + temp * m * cos_angle
-                   d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  - temp * n * nfp * cos_angle
+                   d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  - temp * n * eq%vmec%nfp * cos_angle
 
                    ! Handle Lambda:
                    temp = lmns(imn,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    ! We don't need Lambda itself, just its derivatives.
                    d_Lambda_d_theta_vmec(ia,iz) = d_Lambda_d_theta_vmec(ia,iz) + m * temp * cos_angle
-                   d_Lambda_d_zeta(ia,iz) = d_Lambda_d_zeta(ia,iz) - n * nfp * temp * cos_angle       
+                   d_Lambda_d_zeta(ia,iz) = d_Lambda_d_zeta(ia,iz) - n * nfp * eq%vmec%temp * cos_angle       
 
                    ! Handle d R / d s
                    ! Since R is on the full mesh, its radial derivative is on the half mesh.
@@ -814,9 +685,9 @@ contains
                    d_Lambda_d_s(ia,iz) = d_Lambda_d_s(ia,iz) + temp * sin_angle
 
                 end if
-             end do
-          end do
-       end do
+             end do ! End surface loop
+          end do ! End x3 loop
+       end do ! End x2 loop
 
        ! -----------------------------------------------------
        ! Now consider the stellarator-asymmetric terms.
@@ -829,22 +700,22 @@ contains
           ! B and Lambda are on the half mesh, so their radial derivatives are on the full mesh.
           ! R and Z are on the full mesh, so their radial derivatives are on the half mesh.
 
-          d_B_d_s_mns(2:ns-1) = (bmns(imn_nyq,3:ns) - bmns(imn_nyq,2:ns-1)) / ds
+          d_B_d_s_mns(2:ns-1) = (eq%vmec%bmns(imn_nyq,3:ns) - eq%vmec%bmns(imn_nyq,2:ns-1)) / ds
           ! Simplistic extrapolation at the endpoints:
           d_B_d_s_mns(1) = d_B_d_s_mns(2)
           d_B_d_s_mns(ns) = d_B_d_s_mns(ns-1)
 
           if (non_Nyquist_mode_available) then
              ! R is on the full mesh:
-             d_R_d_s_mns(2:ns) = (rmns(imn,2:ns) - rmns(imn,1:ns-1)) / ds
+             d_R_d_s_mns(2:ns) = (eq%vmec%rmns(imn,2:ns) - eq%vmec%rmns(imn,1:ns-1)) / ds
              d_R_d_s_mns(1) = 0
 
              ! Z is on the full mesh:
-             d_Z_d_s_mnc(2:ns) = (zmnc(imn,2:ns) - zmnc(imn,1:ns-1)) / ds
+             d_Z_d_s_mnc(2:ns) = (eq%vmec%zmnc(imn,2:ns) - eq%vmec%zmnc(imn,1:ns-1)) / ds
              d_Z_d_s_mnc(1) = 0
 
              ! Lambda is on the half mesh:
-             d_Lambda_d_s_mnc(2:ns-1) = (lmnc(imn_nyq,3:ns) - lmnc(imn_nyq,2:ns-1)) / ds
+             d_Lambda_d_s_mnc(2:ns-1) = (eq%vmec%lmnc(imn_nyq,3:ns) - eq%vmec%lmnc(imn_nyq,2:ns-1)) / ds
              ! Simplistic extrapolation at the endpoints:
              d_Lambda_d_s_mnc(1) = d_Lambda_d_s_mnc(2)
              d_Lambda_d_s_mnc(ns) = d_Lambda_d_s_mnc(ns-1)
@@ -856,9 +727,9 @@ contains
 
           ! End of evaluating radial derivatives.
 
-          do ia = 1,Eq_Obj%nx2
-             do iz = -Eq_Obj%nx3, Eq_Obj%nx3
-                angle = m * theta_vmec(ia,iz) - n * nfp * zeta(iz)
+          do ia = 1,eq%nx2
+             do iz = -nzgrid,nzgrid
+                angle = m * theta_vmec(ia,iz) - n * eq%vmec%nfp * zeta(iz)
                 cos_angle = cos(angle)
                 sin_angle = sin(angle)
 
@@ -869,7 +740,7 @@ contains
                    temp = temp * scale_factor
                    B(ia,iz) = B(ia,iz) + temp * sin_angle
                    d_B_d_theta_vmec(ia,iz) = d_B_d_theta_vmec(ia,iz) + m * temp * cos_angle
-                   d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) - n * nfp * temp * cos_angle
+                   d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) - n * eq%vmec%nfp * temp * cos_angle
 
                    ! Handle Jacobian:
                    temp = gmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
@@ -878,7 +749,7 @@ contains
 
                    ! Handle B sup theta:
                    temp = bsupumns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
-                   temp = temp*scale_factor	
+                   temp = temp*scale_factor
                    B_sup_theta_vmec(ia,iz) = B_sup_theta_vmec(ia,iz) + temp * sin_angle
 
                    ! Handle B sup zeta:
@@ -916,21 +787,21 @@ contains
                       temp = temp*scale_factor
                       R(ia,iz) = R(ia,iz) + temp * sin_angle
                       d_R_d_theta_vmec(ia,iz) = d_R_d_theta_vmec(ia,iz) + temp * m * cos_angle
-                      d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  - temp * n * nfp * cos_angle
+                      d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  - temp * n * eq%vmec%nfp * cos_angle
 
                       ! Handle Z, which is on the full mesh
                       temp = zmnc(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                       temp = temp*scale_factor
                       Z(ia,iz) = Z(ia,iz) + temp * cos_angle   ! We don't actually need Z itself, only derivatives of Z.
                       d_Z_d_theta_vmec(ia,iz) = d_Z_d_theta_vmec(ia,iz) - temp * m * sin_angle
-                      d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  + temp * n * nfp * sin_angle
+                      d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  + temp * n * eq%vmec%nfp * sin_angle
 
                       ! Handle Lambda, which is on the half mesh
                       temp = lmnc(imn,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                       temp = temp*scale_factor
                       ! We don't actually need Lambda itself, only derivatives of Lambda.
                       d_Lambda_d_theta_vmec(ia,iz) = d_Lambda_d_theta_vmec(ia,iz) - temp * m * sin_angle
-                      d_Lambda_d_zeta(ia,iz)  = d_Lambda_d_zeta(ia,iz)  + temp * n * nfp * sin_angle
+                      d_Lambda_d_zeta(ia,iz)  = d_Lambda_d_zeta(ia,iz)  + temp * n * eq%vmec%nfp * sin_angle
 
                       ! Handle d R / d s.
                       ! Since R is on the full mesh, its radial derivative is on the half mesh.
@@ -950,11 +821,11 @@ contains
                       temp = temp*scale_factor
                       d_Lambda_d_s(ia,iz) = d_Lambda_d_s(ia,iz) + temp * cos_angle
                    end if
-                end do
-             end do
-          end do
-       end if
-    end do
+                end do ! End surface loop
+             end do ! End x3 loop
+          end do ! End x2 loop
+       end if ! End lasym
+    end do ! End imn_nyq loop 
 
     !*********************************************************************
     ! Sanity check: If the conversion to theta_pest has been done 
@@ -964,7 +835,7 @@ contains
     !*********************************************************************
     
     if (test) then
-      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(Eq_Obj%nx2, -Eq_Obj%nx3:Eq_Obj%nx3))
+      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(eq%nx2, -nzgrid:nzgrid))
       ! Compute (B dot grad theta_pest) / (B dot grad zeta):
       B_dot_grad_theta_pest_over_B_dot_grad_zeta = &
         & (B_sup_theta_vmec * (1 + d_Lambda_d_theta_vmec) + B_sup_zeta * d_Lambda_d_zeta) / B_sup_zeta 
@@ -980,7 +851,7 @@ contains
 
     sqrt_s = sqrt(normalized_toroidal_flux_used)
 
-    do iz = -Eq_Obj%nx3, Eq_Obj%nx3
+    do iz = -nzgrid,nzgrid
        cos_angle = cos(zeta(iz))
        sin_angle = sin(zeta(iz))
 
@@ -1012,14 +883,14 @@ contains
 
     if (test) then
       ! Sanity check: grad_zeta_X should be -sin(zeta) / R:
-      do iz = -Eq_Obj%nx3,Eq_Obj%nx3
+      do iz = -nzgrid,nzgrid
          temp2D(:,iz) = -sin(zeta(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_X, temp2D, .false., 1.0e-2, 'grad_zeta_X')
       grad_zeta_X = temp2D ! We might as well use the exact value, which is in temp2D.
 
       ! Sanity check: grad_zeta_Y should be cos(zeta) / R:
-      do iz = -Eq_Obj%nx3,Eq_Obj%nx3
+      do iz = -nzgrid,nzgrid
          temp2D(:,iz) = cos(zeta(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_Y, temp2D, .false., 1.0e-2, 'grad_zeta_Y')
@@ -1039,7 +910,7 @@ contains
     grad_psi_Z = grad_s_Z * edge_toroidal_flux_over_2pi
 
     ! Form grad alpha = grad (theta_vmec + Lambda - iota * zeta)
-    do iz = -Eq_Obj%nx3,Eq_Obj%nx3
+    do iz = -nzgrid,nzgrid
        grad_alpha_X(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_X(:,iz)
        grad_alpha_Y(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_Y(:,iz)
        grad_alpha_Z(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_Z(:,iz)
@@ -1081,6 +952,7 @@ contains
       call test_arrays(1/sqrt_g, temp2D, .false., 1.0e-2, '1/sqrt_g')
     end if
 
+    ! Things for GIST
     jac_gist_inv = (L_reference**3)/(2*safety_factor_q)*(1 + d_Lambda_d_theta_vmec)/sqrt_g
 
     d_B_d_par = -safety_factor_q/L_reference *jac_gist_inv / B * d_B_d_zeta 
@@ -1125,7 +997,7 @@ contains
          .false., 1.0e-2, 'B_cross_grad_s_dot_grad_alpha')
     end if
 
-    do iz = -Eq_Obj%nx3,Eq_Obj%nx3
+    do iz = -nzgrid,nzgrid
        B_cross_grad_B_dot_grad_alpha(:,iz) = 0 &
             + (B_sub_s(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_zeta(:,iz) - iota) &
             + B_sub_theta_vmec(:,iz) * d_B_d_zeta(:,iz) * (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) &
@@ -1154,20 +1026,20 @@ contains
 
     ! See the latex note gs2_full_surface_stellarator_geometry in the "doc" directory for a derivation of the formulae that follow.
 
-    bmag = B / B_reference
+    bmag = B / eq%B_reference
 
-    gradpar = L_reference * B_sup_zeta / B
+    gradpar = eq%L_reference * B_sup_zeta / B
 
     gds2 = (grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z) &
-         * L_reference * L_reference * normalized_toroidal_flux_used
+         * eq%L_reference * eq%L_reference * normalized_toroidal_flux_used
 
     gds21 = (grad_alpha_X * grad_psi_X + grad_alpha_Y * grad_psi_Y + grad_alpha_Z * grad_psi_Z) &
-         * sign_toroidal_flux * shat / B_reference
+         * sign_toroidal_flux * shat / eq%B_reference
 
     gds22 = (grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z) &
-         * shat * shat / (L_reference * L_reference * B_reference * B_reference * normalized_toroidal_flux_used)
+         * shat * shat / (eq%L_reference * eq%L_reference * eq%B_reference * eq%B_reference * normalized_toroidal_flux_used)
 
-    gbdrift = sign_toroidal_flux * 2 * B_reference * L_reference * L_reference * sqrt_s * B_cross_grad_B_dot_grad_alpha &
+    gbdrift = sign_toroidal_flux * 2 * eq%B_reference * eq%L_reference * eq%L_reference * sqrt_s * B_cross_grad_B_dot_grad_alpha &
          / (B * B * B)
 
     gbdrift0 = abs(edge_toroidal_flux_over_2pi) &
@@ -1175,7 +1047,7 @@ contains
       & * 2 * shat / (B * B * B * sqrt_s)
     ! In the above 2-line expression for gbdrift0, the first line is \vec{B} \times \nabla B \cdot \nabla \psi.
 
-    cvdrift = gbdrift + sign_toroidal_flux * 2 * B_reference * L_reference * L_reference * sqrt_s * mu_0 * d_pressure_d_s &
+    cvdrift = gbdrift + sign_toroidal_flux * 2 * eq%B_reference * eq%L_reference * eq%L_reference * sqrt_s * mu_0 * d_pressure_d_s &
          * B_cross_grad_s_dot_grad_alpha / (B * B * B * B)
 
     cvdrift0 = gbdrift0
@@ -1184,8 +1056,8 @@ contains
     ! Copy the surface quantities
     !*********************************************************************
 
-    Rsurf = R
-    Zsurf = Z
+    !Rsurf = R
+    !Zsurf = Z
 
     !*********************************************************************
     ! Free all arrays that were allocated.
@@ -1273,7 +1145,7 @@ contains
 
       implicit none
 
-      real(dp), dimension(Eq_Obj%nx2,-Eq_Obj%nx3:Eq_Obj%nx3) :: array1, array2
+      real(dp), dimension(eq%nx2,-nzgrid:nzgrid) :: array1, array2
       real(dp) :: tolerance
       character(len=*) :: name
       logical :: should_be_0
@@ -1284,7 +1156,7 @@ contains
          if (verbose) print *,"  maxval(abs(",trim(name),")):",max_value,"(should be << 1.)"
          if (max_value > tolerance) then
             print *,"Error! ",trim(name)," should be 0, but instead it is:"
-            do ia = 1,Eq_Obj%nx2
+            do ia = 1,eq%nx2
                print *,array1(ia,:)
             end do
             stop
@@ -1294,15 +1166,15 @@ contains
          if (verbose) print *,"  Relative difference between two methods for computing ",trim(name),":",max_difference,"(should be << 1.)"
          if (max_difference > tolerance) then
             print *,"Error! Two methods for computing ",trim(name)," disagree. Here comes method 1:"
-            do ia = 1,Eq_Obj%nx2
+            do ia = 1,eq%nx2
                print *,array1(ia,:)
             end do
             print *,"Here comes method 2:"
-            do ia = 1,Eq_Obj%nx2
+            do ia = 1,eq%nx2
                print *,array2(ia,:)
             end do
             print *,"Here comes the difference:"
-            do ia = 1,Eq_Obj%nx2
+            do ia = 1,eq%nx2
                print *,array1(ia,:) - array2(ia,:)
             end do
             stop
@@ -1317,7 +1189,7 @@ contains
 
 
 
-  function fzero_residual(theta_vmec_try)
+  real(dp) function fzero_residual(theta_vmec_try, vmec) result(residual)
 
     use read_wout_mod, only: xm, xn, mnmax, lmns, lmnc, lasym
     ! Note that lmns and lmnc use the non-Nyquist xm, xn, and mnmax.
@@ -1325,25 +1197,25 @@ contains
 
     implicit none
     
-    real(dp) :: theta_vmec_try, fzero_residual
+    real(dp) :: theta_vmec_try
     real(dp) :: angle, sinangle, cosangle
     integer :: imn, which_surface
 
     ! residual = (theta_pest based on theta_vmec_try) - theta_pest_target = theta_vmec_try + Lambda - theta_pest_target
-    fzero_residual = theta_vmec_try - theta_pest_target
+    residual = theta_vmec_try - theta_pest_target
 
     do imn = 1, mnmax
        angle = xm(imn)*theta_vmec_try - xn(imn)*zeta0
        sinangle = sin(angle)
        cosangle = cos(angle)
        do which_surface = 1,2
-          fzero_residual = fzero_residual + vmec_radial_weight_half(which_surface) * lmns(imn,vmec_radial_index_half(which_surface)) * sinangle
+          residual = residual + vmec_radial_weight_half(which_surface) * lmns(imn,vmec_radial_index_half(which_surface)) * sinangle
           if (lasym) then
-             fzero_residual = fzero_residual + vmec_radial_weight_half(which_surface) * lmnc(imn,vmec_radial_index_half(which_surface)) * cosangle
+             residual = residual + vmec_radial_weight_half(which_surface) * lmnc(imn,vmec_radial_index_half(which_surface)) * cosangle
           end if
        end do
     end do
 
-  end function fzero_residual
+  end function
 
-end module vmec2sfl_mod
+end module

@@ -12,6 +12,7 @@ module vmec_core
     logical :: lasym
 
     real(dp), dimension(:), allocatable :: phi ! Toroidal flux 
+    real(dp), dimension(:), allocatable :: phip
     real(dp), dimension(:), allocatable :: xm
     real(dp), dimension(:), allocatable :: xn
     real(dp), dimension(:), allocatable :: xm_nyq
@@ -79,6 +80,7 @@ contains
         
 
     if(allocated(vmec%phi)) deallocate(vmec%phi)
+    if(allocated(vmec%phip)) deallocate(vmec%phip)
     if(allocated(vmec%xm)) deallocate(vmec%xm)
     if(allocated(vmec%xn)) deallocate(vmec%xn)
     if(allocated(vmec%xm_nyq)) deallocate(vmec%xm_nyq)
@@ -101,6 +103,9 @@ contains
 
     allocate(vmec%phi(ns))
     vmec%phi = phi
+
+    allocate(vmec%phip(ns))
+    vmec%phip = phip
 
     allocate(vmec%xm(mnmax))
     vmec%xm = xm
@@ -216,6 +221,7 @@ contains
   subroutine destroy_VMEC_Obj(vmec)
     type(VMEC_Obj), intent(inout) :: vmec
     deallocate(vmec%phi)
+    deallocate(vmec%phip)
     deallocate(vmec%xm)
     deallocate(vmec%xn)
     deallocate(vmec%xm_nyq)
