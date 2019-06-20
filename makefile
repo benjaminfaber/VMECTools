@@ -51,8 +51,8 @@ LIBSTELL_DIR := mini_libstell
 LIBSTELL := $(LIBSTELL_DIR)/mini_libstell.a
 
 EXEC := vmec2sfl
-all: $(EXEC)
-libstell: $(LIBSTELL)
+all: libstell $(EXEC)
+#libstell: $(LIBSTELL)
 
 export
 
@@ -67,7 +67,8 @@ $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f
 $(EXEC): $(OBJS_LINK)
 	$(FC) -o $@ $^ $(LIBSTELL) $(LDFLAGS)
 
-$(LIBSTELL):
+#$(LIBSTELL):
+libstell:
 	$(MAKE) -C mini_libstell
 
 .PHONY: all clean cleanexec

@@ -5,17 +5,17 @@
 !******************************************************************************
 
 module eq_object
-  use types: dp
-  use vmec_core: VMEC_object, create_VMEC_Object, destroy_VMEC_Object
+  use types, only: dp
+  use vmec_core, only: VMEC_Obj, create_VMEC_Obj, destroy_VMEC_Obj
   implicit none
 
-  public Eq_Object, create_Eq_Object, destroy_Eq_Object
+  public Eq_Obj, create_Eq_Obj, destroy_Eq_Obj
 
   private
 
-  type :: Eq_Object
+  type :: Eq_Obj
     ! Pointer to the VMEC equilibrium
-    type(VMEC_Object) :: VMEC_Obj
+    type(VMEC_Obj) :: vmec
 
     ! List of all the calculated quantities
     ! On exit, normalized_toroidal_flux_used holds the flux surface that was actually used for the geometry,
@@ -69,19 +69,16 @@ module eq_object
     real(dp), dimension(:,:,:), allocatable :: g13 ! Metric element g13
     real(dp), dimension(:,:,:), allocatable :: g23 ! Metric element g23
     real(dp), dimension(:,:,:), allocatable :: g33 ! Metric element g33
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_1 ! Derivative of |B| w.r.t. the 1 coordinate
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_2 ! Derivative of |B| w.r.t. the 2 coordinate
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_3 ! Derivative of |B| w.t.t. the 3 coordinate
+    real(dp), dimension(:,:,:), allocatable :: d_B_d_x1 ! Derivative of |B| w.r.t. the 1 coordinate
+    real(dp), dimension(:,:,:), allocatable :: d_B_d_x2 ! Derivative of |B| w.r.t. the 2 coordinate
+    real(dp), dimension(:,:,:), allocatable :: d_B_d_x3 ! Derivative of |B| w.t.t. the 3 coordinate
 
-  end type ! end type Eq_Object
+  end type ! end type Eq_Obj
 
-  interface create_Eq_Object
-    type(Eq_Object) function create_from_VMEC_obj(vmec_obj)
-      type(VMEC_Object), intent(in) :: vmec_obj
-    end function
-    type(Eq_Object) function create_from_VMEC_file(vmec_file)
-      character, intent(in) :: vmec_file(2000)
-    end function
+
+  interface create_Eq_Obj
+    module procedure create_from_VMEC_Obj
+    module procedure create_from_VMEC_file
   end interface
       
  
@@ -136,67 +133,94 @@ module eq_object
 !  real(dp), dimension(:,:), allocatable :: Zsurf ! Z coordinate as a function of straight field line angles
 contains
 
-  function create_from_VMEC_obj(VMEC_Obj) result(Eq_Obj)
-    type(VMEC_Object), intent(in) :: VMEC_Obj
-    type(Eq_Object) :: Eq_Obj
+  type(Eq_Obj) function create_from_VMEC_Obj(vmec) result(eq)
+    type(VMEC_Obj), intent(in) :: vmec
 
-    Eq_Obj%VMEC_Obj = VMEC_Obj
-    if(allocated(Eq_Obj%x1)) deallocate(Eq_Obj%x1)
-    if(allocated(Eq_Obj%x2)) deallocate(Eq_Obj%x2)
-    if(allocated(Eq_Obj%x3)) deallocate(Eq_Obj%x3)
-    if(allocated(Eq_Obj%bmag)) deallocate(Eq_Obj%bmag)
-    if(allocated(Eq_Obj%jac)) deallocate(Eq_Obj%jac)
-    if(allocated(Eq_Obj%g11)) deallocate(Eq_Obj%g11)
-    if(allocated(Eq_Obj%g12)) deallocate(Eq_Obj%g12)
-    if(allocated(Eq_Obj%g22)) deallocate(Eq_Obj%g22)
-    if(allocated(Eq_Obj%g13)) deallocate(Eq_Obj%g13)
-    if(allocated(Eq_Obj%g23)) deallocate(Eq_Obj%g23)
-    if(allocated(Eq_Obj%g33)) deallocate(Eq_Obj%g33)
-    if(allocated(Eq_Obj%d_B_d_x1)) deallocate(Eq_Obj%d_B_d_x1)
-    if(allocated(Eq_Obj%d_B_d_x2)) deallocate(Eq_Obj%d_B_d_x2)
-    if(allocated(Eq_Obj%d_B_d_x3)) deallocate(Eq_Obj%d_B_d_x3)
+    eq%vmec = vmec
+    if(allocated(eq%x1)) deallocate(eq%x1)
+    if(allocated(eq%x2)) deallocate(eq%x2)
+    if(allocated(eq%x3)) deallocate(eq%x3)
+    if(allocated(eq%bmag)) deallocate(eq%bmag)
+    if(allocated(eq%jac)) deallocate(eq%jac)
+    if(allocated(eq%g11)) deallocate(eq%g11)
+    if(allocated(eq%g12)) deallocate(eq%g12)
+    if(allocated(eq%g22)) deallocate(eq%g22)
+    if(allocated(eq%g13)) deallocate(eq%g13)
+    if(allocated(eq%g23)) deallocate(eq%g23)
+    if(allocated(eq%g33)) deallocate(eq%g33)
+    if(allocated(eq%d_B_d_x1)) deallocate(eq%d_B_d_x1)
+    if(allocated(eq%d_B_d_x2)) deallocate(eq%d_B_d_x2)
+    if(allocated(eq%d_B_d_x3)) deallocate(eq%d_B_d_x3)
 
+    allocate(eq%x1(eq%nx1))
+    allocate(eq%x2(eq%nx2))
+    allocate(eq%x3(eq%nx3))
+    allocate(eq%bmag(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%jac(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g11(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g12(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g22(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g13(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g23(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g33(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%d_B_d_x1(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%d_B_d_x2(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%d_B_d_x3(eq%nx3,eq%nx2,eq%nx1))
   end function
 
-  function create_from_VMEC_file(VMEC_file) result(Eq_Obj)
+  type(Eq_Obj) function create_from_VMEC_file(VMEC_file) result(eq)
     character(len=2000), intent(in) :: VMEC_file
-    type(Eq_Object) :: Eq_Obj
 
-    Eq_Obj%VMEC_Obj = create_vmec_object(VMEC_file)
-    if(allocated(Eq_Obj%x1)) deallocate(Eq_Obj%x1)
-    if(allocated(Eq_Obj%x2)) deallocate(Eq_Obj%x2)
-    if(allocated(Eq_Obj%x3)) deallocate(Eq_Obj%x3)
-    if(allocated(Eq_Obj%bmag)) deallocate(Eq_Obj%bmag)
-    if(allocated(Eq_Obj%jac)) deallocate(Eq_Obj%jac)
-    if(allocated(Eq_Obj%g11)) deallocate(Eq_Obj%g11)
-    if(allocated(Eq_Obj%g12)) deallocate(Eq_Obj%g12)
-    if(allocated(Eq_Obj%g22)) deallocate(Eq_Obj%g22)
-    if(allocated(Eq_Obj%g13)) deallocate(Eq_Obj%g13)
-    if(allocated(Eq_Obj%g23)) deallocate(Eq_Obj%g23)
-    if(allocated(Eq_Obj%g33)) deallocate(Eq_Obj%g33)
-    if(allocated(Eq_Obj%d_B_d_x1)) deallocate(Eq_Obj%d_B_d_x1)
-    if(allocated(Eq_Obj%d_B_d_x2)) deallocate(Eq_Obj%d_B_d_x2)
-    if(allocated(Eq_Obj%d_B_d_x3)) deallocate(Eq_Obj%d_B_d_x3)
+    eq%vmec = create_VMEC_Obj(VMEC_file)
+    if(allocated(eq%x1)) deallocate(eq%x1)
+    if(allocated(eq%x2)) deallocate(eq%x2)
+    if(allocated(eq%x3)) deallocate(eq%x3)
+    if(allocated(eq%bmag)) deallocate(eq%bmag)
+    if(allocated(eq%jac)) deallocate(eq%jac)
+    if(allocated(eq%g11)) deallocate(eq%g11)
+    if(allocated(eq%g12)) deallocate(eq%g12)
+    if(allocated(eq%g22)) deallocate(eq%g22)
+    if(allocated(eq%g13)) deallocate(eq%g13)
+    if(allocated(eq%g23)) deallocate(eq%g23)
+    if(allocated(eq%g33)) deallocate(eq%g33)
+    if(allocated(eq%d_B_d_x1)) deallocate(eq%d_B_d_x1)
+    if(allocated(eq%d_B_d_x2)) deallocate(eq%d_B_d_x2)
+    if(allocated(eq%d_B_d_x3)) deallocate(eq%d_B_d_x3)
+
+    allocate(eq%x1(eq%nx1))
+    allocate(eq%x2(eq%nx2))
+    allocate(eq%x3(eq%nx3))
+    allocate(eq%bmag(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%jac(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g11(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g12(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g22(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g13(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g23(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%g33(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%d_B_d_x1(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%d_B_d_x2(eq%nx3,eq%nx2,eq%nx1))
+    allocate(eq%d_B_d_x3(eq%nx3,eq%nx2,eq%nx1))
   end function
  
-  subroutine destroy_Eq_Object(Eq_Obj)
-    type(Eq_Object), intent(inout) :: Eq_Obj
+  subroutine destroy_Eq_Obj(eq)
+    type(Eq_Obj), intent(inout) :: eq
     
-    call destroy_VMEC_Object(Eq_Obj%VMEC_Obj)
-    deallocate(Eq_Obj%x1)
-    deallocate(Eq_Obj%x2)
-    deallocate(Eq_Obj%x3)
-    deallocate(Eq_Obj%bmag)
-    deallocate(Eq_Obj%jac)
-    deallocate(Eq_Obj%g11)
-    deallocate(Eq_Obj%g12)
-    deallocate(Eq_Obj%g22)
-    deallocate(Eq_Obj%g13)
-    deallocate(Eq_Obj%g23)
-    deallocate(Eq_Obj%g33)
-    deallocate(Eq_Obj%d_B_d_1)
-    deallocate(Eq_Obj%d_B_d_2)
-    deallocate(Eq_Obj%d_B_d_3)
+    call destroy_VMEC_Obj(eq%vmec)
+    deallocate(eq%x1)
+    deallocate(eq%x2)
+    deallocate(eq%x3)
+    deallocate(eq%bmag)
+    deallocate(eq%jac)
+    deallocate(eq%g11)
+    deallocate(eq%g12)
+    deallocate(eq%g22)
+    deallocate(eq%g13)
+    deallocate(eq%g23)
+    deallocate(eq%g33)
+    deallocate(eq%d_B_d_x1)
+    deallocate(eq%d_B_d_x2)
+    deallocate(eq%d_B_d_x3)
   end subroutine
 
 end module 
