@@ -79,6 +79,8 @@ contains
     vmec%isigng = isigng
     vmec%Aminor = Aminor
     vmec%Rmajor = Rmajor
+    vmec%mpol = mpol
+    vmec%ntor = ntor
         
 
     if(allocated(vmec%phi)) deallocate(vmec%phi)

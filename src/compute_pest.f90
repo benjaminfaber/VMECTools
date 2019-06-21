@@ -560,6 +560,7 @@ print *, pest%zeta
        m = pest%vmec%xm_nyq(imn_nyq)
        n = pest%vmec%xn_nyq(imn_nyq)/pest%vmec%nfp
 
+print *, m,' ',pest%vmec%mpol,' ',n,' ',pest%vmec%ntor
        if (abs(m) >= pest%vmec%mpol .or. abs(n) > pest%vmec%ntor) then
           non_Nyquist_mode_available = .false.
        else
@@ -853,7 +854,7 @@ print *, pest%zeta
           end do ! End x2 loop
        end if ! End lasym
     end do ! End imn_nyq loop 
-print *, d_Lambda_d_theta_vmec
+
     !*********************************************************************
     ! Sanity check: If the conversion to theta_pest has been done 
     ! correctly, we should find that 
@@ -1049,10 +1050,10 @@ print *, d_Lambda_d_theta_vmec
 
     pest%bmag(:,:,1) = B    
     pest%jac(:,:,1) = sqrt_g
-    pest%gss(:,:,1) = grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z
-    pest%gsa(:,:,1) = grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z
+    pest%gss(:,:,1) = 4.0/((pest%B_ref**2)*(pest%L_ref**4))*(grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z)
+    pest%gsa(:,:,1) = 2.0/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z)
     pest%gaa(:,:,1) = grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z
-    pest%gsz(:,:,1) = grad_psi_X * grad_zeta_X + grad_psi_Y * grad_zeta_Y + grad_psi_Z * grad_zeta_Z
+    pest%gsz(:,:,1) = 2.0/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_zeta_X + grad_psi_Y * grad_zeta_Y + grad_psi_Z * grad_zeta_Z)
     pest%gaz(:,:,1) = grad_alpha_X * grad_zeta_X + grad_alpha_Y * grad_zeta_Y + grad_alpha_Z * grad_zeta_Z
     pest%gzz(:,:,1) = grad_zeta_X * grad_zeta_X + grad_zeta_Y * grad_zeta_Y + grad_zeta_Z * grad_zeta_Z
     pest%d_L_d_theta_v(:,:,1) = d_Lambda_d_theta_vmec
