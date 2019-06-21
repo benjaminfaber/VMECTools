@@ -50,7 +50,7 @@ LIBSTELL_DIR := mini_libstell
 # that comes packaged with this repository, or else it should point to a libstell.a library elsewhere on your system.
 LIBSTELL := $(LIBSTELL_DIR)/mini_libstell.a
 
-EXEC := vmec2sfl
+EXEC := vmec2pest
 all: libstell $(EXEC)
 #libstell: $(LIBSTELL)
 
@@ -77,7 +77,7 @@ clean:
 	rm -f $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(OBJ_DIR)/*.MOD $(LIBSTELL_DIR)/*.o $(LIBSTELL_DIR)/*.mod $(LIBSTELL_DIR)/*.MOD *~
 
 cleanexec:
-	vmec2sfl
+	vmec2pest
 	
 #cd mini_libstell; rm -f *.o *.mod *.MOD *.a
 

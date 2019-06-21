@@ -2,15 +2,17 @@
 # Dependencies:
 objs/fzero.o:
 objs/types.o: 
-objs/io_core.o: objs/types.mod
-objs/vmec_core.o: $(LIBSTELL) objs/types.mod
-objs/eq_object.o: objs/vmec_core.mod objs/types.mod
-#objs/compute_core.o: objs/types.mod objs/eq_object.mod
-objs/vmec2sfl.o: objs/eq_object.mod objs/io_core.mod
+objs/io_core.o: objs/types.mod objs/pest_object.mod
+objs/vmec_object.o: $(LIBSTELL) objs/types.mod
+objs/pest_object.o: objs/vmec_object.mod objs/types.mod
+objs/compute_pest.o: objs/types.mod objs/pest_object.mod
+objs/vmec2pest.o: objs/pest_object.mod objs/io_core.mod objs/compute_pest.mod objs/normalizations.mod
+objs/normalizations.o: objs/pest_object.mod objs/types.mod
 
 objs/fzero.mod: objs/fzero.o
 objs/types.mod: objs/types.o 
-objs/vmec_core.mod: objs/vmec_core.o
-objs/eq_object.mod: objs/eq_object.o
+objs/vmec_object.mod: objs/vmec_object.o
+objs/pest_object.mod: objs/pest_object.o
 objs/io_core.mod: objs/io_core.o
-#objs/compute_core.mod: objs/compute_core.o
+objs/compute_pest.mod: objs/compute_pest.o
+objs/normalizations.mod: objs/normalizations.o
