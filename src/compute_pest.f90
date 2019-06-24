@@ -85,7 +85,7 @@ contains
     ! Beginning of executable statements.
     !*********************************************************************
     ns = pest%vmec%ns
-    verbose = .false.
+    verbose = .true.
     test = .false.
 
     if (verbose) print *,"Entering subroutine compute_pest_surface."
@@ -359,7 +359,7 @@ contains
     real(dp), dimension(:,:), allocatable :: grad_B_X, grad_B_Y, grad_B_Z
     real(dp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
     logical :: verbose, test
-    verbose = .false.
+    verbose = .true.
     test = .true.
     !*********************************************************************
     ! Read in everything from the vmec wout file using libstell.
@@ -407,7 +407,6 @@ contains
     end if
 
     pest%zeta = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nzeta-1)), j=pest%iz1,pest%iz2 )]
-print *, pest%zeta
 
     !*********************************************************************
     ! We know theta_pest = alpha + pest%iota * pest%zeta, but we need to determine
@@ -560,7 +559,6 @@ print *, pest%zeta
        m = pest%vmec%xm_nyq(imn_nyq)
        n = pest%vmec%xn_nyq(imn_nyq)/pest%vmec%nfp
 
-print *, m,' ',pest%vmec%mpol,' ',n,' ',pest%vmec%ntor
        if (abs(m) >= pest%vmec%mpol .or. abs(n) > pest%vmec%ntor) then
           non_Nyquist_mode_available = .false.
        else
@@ -942,6 +940,9 @@ print *, m,' ',pest%vmec%mpol,' ',n,' ',pest%vmec%ntor
        grad_alpha_X(:,iz) = (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) * grad_s_X(:,iz)
        grad_alpha_Y(:,iz) = (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) * grad_s_Y(:,iz)
        grad_alpha_Z(:,iz) = (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) * grad_s_Z(:,iz)
+if (abs(pest%zeta(iz)) < 1e-8) then
+print *, grad_alpha_X(:,iz),' ',grad_alpha_Y(:,iz),' ', grad_alpha_Z(:,iz)
+end if
     end do
     grad_alpha_X = grad_alpha_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_X
     grad_alpha_Y = grad_alpha_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_Y
@@ -1057,7 +1058,6 @@ print *, m,' ',pest%vmec%mpol,' ',n,' ',pest%vmec%ntor
     pest%gaz(:,:,1) = grad_alpha_X * grad_zeta_X + grad_alpha_Y * grad_zeta_Y + grad_alpha_Z * grad_zeta_Z
     pest%gzz(:,:,1) = grad_zeta_X * grad_zeta_X + grad_zeta_Y * grad_zeta_Y + grad_zeta_Z * grad_zeta_Z
     pest%d_L_d_theta_v(:,:,1) = d_Lambda_d_theta_vmec
-    print *, d_Lambda_d_theta_vmec
     !*********************************************************************
     ! Finally, assemble the quantities needed for gs2.
     !*********************************************************************
@@ -1221,38 +1221,38 @@ print *, m,' ',pest%vmec%mpol,' ',n,' ',pest%vmec%ntor
 
     end subroutine test_arrays
 
+    real(dp) function fzero_residual(theta_vmec_try) result(residual)
+      ! Note that lmns and lmnc use the non-Nyquist xm, xn, and mnmax.
+      ! Also note that lmns and lmnc are on the HALF grid.
+
+      implicit none
+      
+      real(dp), intent(in) :: theta_vmec_try
+      real(dp) :: angle, sinangle, cosangle
+      integer :: imn, which_surface
+      !type(VMEC_Obj), intent(in) :: vmec
+
+      ! residual = (theta_pest based on theta_vmec_try) - theta_pest_target = theta_vmec_try + Lambda - theta_pest_target
+      residual = theta_vmec_try - theta_pest_target
+
+      do imn = 1, pest%vmec%mnmax
+         angle = pest%vmec%xm(imn)*theta_vmec_try - pest%vmec%xn(imn)*zeta0
+         sinangle = sin(angle)
+         cosangle = cos(angle)
+         do which_surface = 1,2
+            residual = residual + vmec_radial_weight_half(which_surface) * pest%vmec%lmns(imn,vmec_radial_index_half(which_surface)) * sinangle
+            if (pest%vmec%lasym) then
+               residual = residual + vmec_radial_weight_half(which_surface) * pest%vmec%lmnc(imn,vmec_radial_index_half(which_surface)) * cosangle
+            end if
+         end do
+      end do
+
+    end function
+
+
   end subroutine compute_pest_sfl
 
   ! --------------------------------------------------------------------------
 
-
-
-  real(dp) function fzero_residual(theta_vmec_try, vmec) result(residual)
-    ! Note that lmns and lmnc use the non-Nyquist xm, xn, and pest%vmec%mnmax.
-    ! Also note that lmns and lmnc are on the HALF grid.
-
-    implicit none
-    
-    real(dp), intent(in) :: theta_vmec_try
-    real(dp) :: angle, sinangle, cosangle
-    integer :: imn, which_surface
-    type(VMEC_Obj), intent(in) :: vmec
-
-    ! residual = (theta_pest based on theta_vmec_try) - theta_pest_target = theta_vmec_try + Lambda - theta_pest_target
-    residual = theta_vmec_try - theta_pest_target
-
-    do imn = 1, vmec%mnmax
-       angle = vmec%xm(imn)*theta_vmec_try - vmec%xn(imn)*zeta0
-       sinangle = sin(angle)
-       cosangle = cos(angle)
-       do which_surface = 1,2
-          residual = residual + vmec_radial_weight_half(which_surface) * vmec%lmns(imn,vmec_radial_index_half(which_surface)) * sinangle
-          if (vmec%lasym) then
-             residual = residual + vmec_radial_weight_half(which_surface) * vmec%lmnc(imn,vmec_radial_index_half(which_surface)) * cosangle
-          end if
-       end do
-    end do
-
-  end function
 
 end module
