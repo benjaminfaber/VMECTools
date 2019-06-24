@@ -360,7 +360,7 @@ contains
     real(dp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
     logical :: verbose, test
     verbose = .false.
-    test = .false.
+    test = .true.
     !*********************************************************************
     ! Read in everything from the vmec wout file using libstell.
     !*********************************************************************
@@ -406,7 +406,7 @@ contains
        if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",pest%vmec%nfp
     end if
 
-    pest%zeta = [( zeta_center + (pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*pest%nzeta), j=pest%iz1,pest%iz2 )]
+    pest%zeta = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nzeta-1)), j=pest%iz1,pest%iz2 )]
 print *, pest%zeta
 
     !*********************************************************************
@@ -1051,7 +1051,7 @@ print *, m,' ',pest%vmec%mpol,' ',n,' ',pest%vmec%ntor
     pest%bmag(:,:,1) = B    
     pest%jac(:,:,1) = sqrt_g
     pest%gss(:,:,1) = 4.0/((pest%B_ref**2)*(pest%L_ref**4))*(grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z)
-    pest%gsa(:,:,1) = 2.0/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z)
+    pest%gsa(:,:,1) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z)
     pest%gaa(:,:,1) = grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z
     pest%gsz(:,:,1) = 2.0/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_zeta_X + grad_psi_Y * grad_zeta_Y + grad_psi_Z * grad_zeta_Z)
     pest%gaz(:,:,1) = grad_alpha_X * grad_zeta_X + grad_alpha_Y * grad_zeta_Y + grad_alpha_Z * grad_zeta_Z

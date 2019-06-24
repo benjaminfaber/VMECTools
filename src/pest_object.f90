@@ -153,7 +153,7 @@ contains
     pest%vmec = vmec
     pest%ns = ns
     pest%nalpha = n_alpha
-    pest%nzeta = n_zeta
+    pest%nzeta = n_zeta+1
 
     pest%is1 = 1
     pest%is2 = 1

@@ -20,10 +20,10 @@ contains
         pest%gsz(k,j,1) = pest%gsa(k,j,1) - pest%zeta(j)*d_iota_d_s*pest%gss(k,j,1) + pest%iota*pest%gsz(k,j,1)
         pest%gaz(k,j,1) = pest%gaa(k,j,1) - pest%zeta(j)*d_iota_d_s*pest%gsa(k,j,1) + pest%iota*pest%gaz(k,j,1)
         pest%gzz(k,j,1) = pest%gaa(k,j,1) + pest%zeta(j)*pest%zeta(j)*d_iota_d_s*d_iota_d_s*pest%gss(k,j,1) + &
-          & pest%iota*pest%iota*pest%gzz(k,j,1) + 2.0*(pest%iota*pest%gaz(j,k,1) - &
-          & pest%zeta(j)*d_iota_d_s*pest%gsa(k,j,1) - pest%zeta(j)*d_iota_d_s*pest%gsz(j,k,1))
+          & pest%iota*pest%iota*pest%gzz(k,j,1) - 2.0*(pest%iota*pest%gaz(j,k,1) + &
+          & pest%zeta(j)*d_iota_d_s*pest%gsa(k,j,1) + pest%zeta(j)*d_iota_d_s*pest%gsz(j,k,1))
         print *, k, ' ' , j, ' ' , pest%jac(k,j,1), ' ', pest%d_L_d_theta_v(k,j,1)
-        pest%jac(k,j,1) = abs(sqrt(pest%jac(k,j,1))/(1.0+pest%d_L_d_theta_v(k,j,1)))
+        pest%jac(k,j,1) = abs(pest%jac(k,j,1)/(1.0+pest%d_L_d_theta_v(k,j,1)))
         print *, k, ' ' , j, ' ' , pest%jac(k,j,1)
       end do
     end do
@@ -34,6 +34,7 @@ contains
     pest%gsz = 0.5*pest%L_ref*pest%L_ref/sqrt(pest%s0)*pest%gsz
     pest%gaz = pest%L_ref*pest%L_ref*sqrt(pest%s0)*pest%iota*pest%gaz
     pest%gzz = pest%L_ref*pest%L_ref*pest%gzz
+    pest%bmag = 1.0/pest%B_ref*pest%bmag
     print  *, pest%jac(1,1,1)
 
   end subroutine
