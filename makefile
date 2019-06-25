@@ -43,8 +43,9 @@ LIBSTELL_DIR := mini_libstell
 # that comes packaged with this repository, or else it should point to a libstell.a library elsewhere on your system.
 LIBSTELL := $(LIBSTELL_DIR)/mini_libstell.a
 
-EXEC := vmec2pest
-all: libstell $(EXEC)
+VMEC2PEST := vmec2pest
+all: v2p
+v2p: libstell $(VMEC2PEST)
 #libstell: $(LIBSTELL)
 
 export
@@ -57,22 +58,26 @@ $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f90
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f
 	@$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
 
-$(EXEC): $(OBJS_LINK)
+$(VMEC2PEST): $(OBJS_LINK)
 	@$(FC) -o $@ $^ $(LIBSTELL) $(LDFLAGS)
 
 #$(LIBSTELL):
 libstell:
-	$(MAKE) -C mini_libstell
+	@$(MAKE) -C mini_libstell
 
-.PHONY: all clean cleanexec
+.PHONY: all allclean cleanexec libclean objclean
 
-clean:
-	rm -f $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(OBJ_DIR)/*.MOD $(LIBSTELL_DIR)/*.o $(LIBSTELL_DIR)/*.mod $(LIBSTELL_DIR)/*.MOD *~
+allclean:
+	rm -f $(OBJS_DIR)/*.o $(OBJS_DIR)/*.mod $(OBJS_DIR)/*.MOD $(LIBSTELL_DIR)/*.o $(LIBSTELL_DIR)/*.mod $(LIBSTELL_DIR)/*.MOD *~
 
 cleanexec:
-	vmec2pest
-	
-#cd mini_libstell; rm -f *.o *.mod *.MOD *.a
+	$(VMEC2PEST)
+
+objclean:
+	rm -f $(OBJS_DIR)/*.o $(OBJS_DIR)/*.mod $(OBJS_DIR)/*.MOD
+
+libclean:
+	rm -f $(LIBSTELL_DIR)/*.o $(LIBSTELL_DIR)/*.mod $(LIBSTELL_DIR)/*.MOD
 
 test_make:
 	@echo HOSTNAME is $(HOST)
