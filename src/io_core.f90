@@ -4,13 +4,13 @@ module io_core
   implicit none
 
   public:: read_input, write_pest_file
-  public:: tag, geom_file, outdir, x3_coord, n_alpha, n_zeta, z_center, &
-    & n_turns, max_angle, kx_max, ky_min, surfaces, surf_opt
+  public:: tag, geom_file, outdir, x3_coord, n_field_lines, n_parallel_pts, grid_center, &
+    & n_field_periods, max_angle, kx_max, ky_min, surfaces, surf_opt
 
   character(len=2000) :: tag, geom_file, outdir
   character(len=5) :: x3_coord
-  integer :: n_alpha, n_zeta, n_turns, surf_opt
-  real(dp) :: z_center, max_angle, kx_max, ky_min
+  integer :: n_field_lines, n_parallel_pts, surf_opt
+  real(dp) :: grid_center, max_angle, kx_max, ky_min, n_field_periods
   real(dp), dimension(:), allocatable :: surfaces
   logical :: verbose, test
 
@@ -22,18 +22,18 @@ contains
     character(len=256), intent(in) :: filename
     integer :: iunit
 
-    namelist /parameters/ tag, geom_file, outdir, x3_coord, n_alpha, n_zeta, z_center, n_turns, &
+    namelist /parameters/ tag, geom_file, outdir, x3_coord, n_field_lines, n_parallel_pts, grid_center, n_field_periods, &
       max_angle, kx_max, ky_min, surfaces, surf_opt, verbose, test
     ! Set default values of parameters
     tag = ''
     x3_coord = 'zeta'
     outdir = ''
     
-    n_alpha = 1
-    n_zeta = 128
-    z_center = 0.0  
+    n_field_lines = 1
+    n_parallel_pts = 128
+    grid_center = 0.0  
 
-    n_turns = 1 ! Number physical turns around the device
+    n_field_periods = 1.0 ! Number of field periods to calculate
     max_angle = pi
     kx_max = 1.0 ! In units of rho_s
     ky_min = 0.05 ! In units of rho_s 
@@ -59,12 +59,12 @@ contains
     filename = "pest_"//trim(tag)//".dat"
     open(newunit=iunit,file=trim(filename))
     write (iunit,'(A)') '&parameters'
-    write (iunit,'(A,F12.7)') '!s0 = ', pest%s0 
+    write (iunit,'(A,F12.7)') '!s0 = ', pest%x1(pest%ix11)
     write (iunit,'(A,F12.7)') '!minor_r = ', pest%L_ref
     write (iunit,'(A,F12.7)') '!Bref = ', pest%B_ref
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q
     write (iunit,'(A,F12.7)') 'shat = ', pest%shat
-    write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3 
+    write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
     write (iunit,'(A,I6)') 'n_pol = ', 1 
     write (iunit,'(A)') '/'
     write (iunit,'(9(A23,2x))') '#theta','g11','g12','g22','g13','g23','g33','|B|','sqrt(g)' 

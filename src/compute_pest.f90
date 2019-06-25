@@ -85,7 +85,7 @@ contains
     ! Beginning of executable statements.
     !*********************************************************************
     ns = pest%vmec%ns
-    verbose = .true.
+    verbose = .false.
     test = .false.
 
     if (verbose) print *,"Entering subroutine compute_pest_surface."
@@ -360,7 +360,7 @@ contains
     real(dp), dimension(:,:), allocatable :: grad_B_X, grad_B_Y, grad_B_Z
     real(dp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
     logical :: verbose, test
-    verbose = .true.
+    verbose = .false.
     test = .false.
     !*********************************************************************
     ! Read in everything from the vmec wout file using libstell.
@@ -407,11 +407,13 @@ contains
        if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",pest%vmec%nfp
     end if
 
-!    pest%x3 = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
-do j=pest%ix31,pest%ix32
-  pest%x3(j) = zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))
-  print *, pest%x3(j),' ',pi*j,' ',pi*j*number_of_field_periods_to_include_final,' ',pest%vmec%nfp,' ',(pest%nx3-1)/2
-end do
+    if (trim(pest%x3_coord) == 'zeta') then
+      pest%x3 = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+    end if
+
+    if (trim(pest%x3_coord) == 'theta') then
+      pest%x3 = [( pest%safety_factor_q*(zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
+    end if
 
     !*********************************************************************
     ! We know theta_pest = alpha + pest%iota * pest%x3, but we need to determine
@@ -703,10 +705,6 @@ end do
                    ! Handle d R / d s
                    ! Since R is on the full mesh, its radial derivative is on the half mesh.
                    temp = d_R_d_s_mnc(vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
-if ((imn .le. 3) .and. (ia .eq. 0) .and. (abs(iz) <= 1)) then
-print *, vmec_radial_index_half(isurf),' ',pest%vmec%rmnc(imn,vmec_radial_index_half(isurf)),' ',d_R_d_s_mnc(vmec_radial_index_half(isurf)),' ',vmec_radial_weight_half(isurf)
-print *, "===="
-end if
                    temp = temp*scale_factor
                    d_R_d_s(ia,iz) = d_R_d_s(ia,iz) + temp * cos_angle
 
@@ -917,23 +915,6 @@ end if
     grad_zeta_X = (d_Y_d_s * d_Z_d_theta_vmec - d_Z_d_s * d_Y_d_theta_vmec) / sqrt_g
     grad_zeta_Y = (d_Z_d_s * d_X_d_theta_vmec - d_X_d_s * d_Z_d_theta_vmec) / sqrt_g
     grad_zeta_Z = (d_X_d_s * d_Y_d_theta_vmec - d_Y_d_s * d_X_d_theta_vmec) / sqrt_g
-print *, "===="
-print *, grad_zeta_Y(:,-1:1)
-print *,'----'
-print *,d_Z_d_s(:,-1:1)
-print *,'----'
-print *,d_X_d_theta_vmec(:,-1:1)
-print *,'----'
-print *,d_R_d_s(:,-1:1)
-print *,'----'
-print *,pest%x3(-1:1)
-print *,'----'
-print *,d_X_d_s(:,-1:1)
-print *,'----'
-print *,d_Z_d_theta_vmec(:,-1:1)
-print *,'----'
-print *,sqrt_g(:,-1:1)
-print *, "===="
     ! End of the dual relations.
 
     if (test) then
@@ -973,19 +954,6 @@ print *, "===="
     grad_alpha_X = grad_alpha_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_X
     grad_alpha_Y = grad_alpha_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_Y
     grad_alpha_Z = grad_alpha_Z + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Z + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_Z
-print *,"===="
-print *, grad_alpha_Y(:,-1:1)
-print *,'----'
-print *,d_Lambda_d_theta_vmec(:,-1:1)
-print *,'----'
-print *,grad_theta_vmec_Y(:,-1:1)
-print *,'----'
-print *,pest%iota
-print *,'----'
-print *,d_Lambda_d_zeta(:,-1:1)
-print *,'----'
-print *,grad_zeta_Y(:,-1:1)
-print *, "===="
 
     grad_theta_X = d_Lambda_d_s * grad_s_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + d_Lambda_d_zeta * grad_zeta_X 
     grad_theta_Y = d_Lambda_d_s * grad_s_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + d_Lambda_d_zeta * grad_zeta_Y 
@@ -1097,25 +1065,19 @@ print *, "===="
     pest%g11(:,:,pest%ix11) = 4.0/((pest%B_ref**2)*(pest%L_ref**4))*(grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z)
     pest%g12(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z)
     pest%g22(:,:,pest%ix11) = grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z
-print *,"===="
-print *,grad_alpha_X(:,-1:1)
-print *,'----'
-print *,grad_alpha_Y(:,-1:1)
-print *,'----'
-print *,grad_alpha_Z(:,-1:1)
-print *,'----'
-print *,pest%g22(:,-1:1,1)
-print *,"===="
+
     if (trim(pest%x3_coord) == 'zeta') then
       pest%g13(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_zeta_X + grad_psi_Y * grad_zeta_Y + grad_psi_Z * grad_zeta_Z)
       pest%g23(:,:,pest%ix11) = grad_alpha_X * grad_zeta_X + grad_alpha_Y * grad_zeta_Y + grad_alpha_Z * grad_zeta_Z
       pest%g33(:,:,pest%ix11) = grad_zeta_X * grad_zeta_X + grad_zeta_Y * grad_zeta_Y + grad_zeta_Z * grad_zeta_Z
     end if
+
     if (trim(pest%x3_coord) == 'theta') then
       pest%g13(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_theta_X + grad_psi_Y * grad_theta_Y + grad_psi_Z * grad_theta_Z)
       pest%g23(:,:,pest%ix11) = grad_alpha_X * grad_theta_X + grad_alpha_Y * grad_theta_Y + grad_alpha_Z * grad_theta_Z
       pest%g33(:,:,pest%ix11) = grad_theta_X * grad_theta_X + grad_theta_Y * grad_theta_Y + grad_theta_Z * grad_theta_Z
     end if
+
     pest%d_Lambda_d_theta_vmec(:,:,pest%ix11) = d_Lambda_d_theta_vmec
     !*********************************************************************
     ! Finally, assemble the quantities needed for gs2.

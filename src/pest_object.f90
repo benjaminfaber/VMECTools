@@ -74,9 +74,9 @@ module pest_object
     real(dp), dimension(:,:,:), allocatable :: g13 ! Metric element gsz
     real(dp), dimension(:,:,:), allocatable :: g23 ! Metric element gaz
     real(dp), dimension(:,:,:), allocatable :: g33 ! Metric element gzz
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_s ! Derivative of |B| w.r.t. the 1 coordinate
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_alpha ! Derivative of |B| w.r.t. the 2 coordinate
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_zeta ! Derivative of |B| w.t.t. the 3 coordinate
+    real(dp), dimension(:,:,:), allocatable :: d_B_d_x1 ! Derivative of |B| w.r.t. the 1 coordinate
+    real(dp), dimension(:,:,:), allocatable :: d_B_d_x2 ! Derivative of |B| w.r.t. the 2 coordinate
+    real(dp), dimension(:,:,:), allocatable :: d_B_d_x3 ! Derivative of |B| w.t.t. the 3 coordinate
 
     real(dp), dimension(:,:,:), allocatable :: Rsurf ! The R coordinate of the surfaces
     real(dp), dimension(:,:,:), allocatable :: Zsurf ! The Z coordinate of the surfaces
@@ -180,9 +180,9 @@ contains
     if(allocated(pest%g13)) deallocate(pest%g13)
     if(allocated(pest%g23)) deallocate(pest%g23)
     if(allocated(pest%g33)) deallocate(pest%g33)
-    if(allocated(pest%d_B_d_s)) deallocate(pest%d_B_d_s)
-    if(allocated(pest%d_B_d_alpha)) deallocate(pest%d_B_d_alpha)
-    if(allocated(pest%d_B_d_zeta)) deallocate(pest%d_B_d_zeta)
+    if(allocated(pest%d_B_d_x1)) deallocate(pest%d_B_d_x1)
+    if(allocated(pest%d_B_d_x2)) deallocate(pest%d_B_d_x2)
+    if(allocated(pest%d_B_d_x3)) deallocate(pest%d_B_d_x3)
     if(allocated(pest%Rsurf)) deallocate(pest%Rsurf)
     if(allocated(pest%Zsurf)) deallocate(pest%Zsurf)
     if(allocated(pest%d_Lambda_d_theta_vmec)) deallocate(pest%d_Lambda_d_theta_vmec)
@@ -198,9 +198,9 @@ contains
     allocate(pest%g13(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
     allocate(pest%g23(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
     allocate(pest%g33(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%d_B_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%d_B_d_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%d_B_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%d_B_d_x1(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%d_B_d_x2(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%d_B_d_x3(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
     allocate(pest%Rsurf(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
     allocate(pest%Zsurf(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
     allocate(pest%d_Lambda_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
@@ -257,9 +257,9 @@ contains
     deallocate(pest%g13)
     deallocate(pest%g23)
     deallocate(pest%g33)
-    deallocate(pest%d_B_d_s)
-    deallocate(pest%d_B_d_alpha)
-    deallocate(pest%d_B_d_zeta)
+    deallocate(pest%d_B_d_x1)
+    deallocate(pest%d_B_d_x2)
+    deallocate(pest%d_B_d_x3)
     deallocate(pest%Rsurf)
     deallocate(pest%Zsurf)
     deallocate(pest%d_Lambda_d_theta_vmec)
