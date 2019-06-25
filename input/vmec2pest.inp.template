@@ -1,0 +1,10 @@
+&parameters
+tag = ''
+geom_file = ''
+outdir = 'out/'
+n_field_lines = 1 
+n_parallel_pts = 64 
+n_field_periods = 1.0
+grid_center = 0.0
+x3_coord = 'theta'
+/
