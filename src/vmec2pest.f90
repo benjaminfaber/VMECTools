@@ -1,7 +1,8 @@
 program vmec2sfl
   use types, only: dp, pi
-  use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj
-  use io_core, only: read_input, write_pest_file, geom_file, surfaces, surf_opt, grid_center, n_field_lines, n_parallel_pts, n_field_periods
+  use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values
+  use io_core, only: read_input, write_pest_file, geom_file, surfaces, surf_opt, &
+    & x3_center, n_field_lines, n_parallel_pts, n_field_periods, x3_coord, norm_type
   use compute_pest, only: compute_pest_surface, compute_pest_sfl
   use normalizations, only: gene_normalizations
   implicit none
@@ -21,8 +22,10 @@ program vmec2sfl
   infile = 'vmec2pest.inp'
   call read_input(infile)
   pest = create_PEST_Obj(geom_file,surfaces,n_field_lines,n_parallel_pts)
+  call set_PEST_reference_values(pest,norm_type)
+  pest%x3_coord = x3_coord
   call compute_pest_surface(pest%x1(pest%ix11),surf_opt,pest)
-  call compute_pest_sfl(grid_center,n_field_periods,pest)
+  call compute_pest_sfl(x3_center,n_field_periods,pest)
   call gene_normalizations(pest) 
   call write_pest_file(pest)
   call destroy_PEST_Obj(pest)

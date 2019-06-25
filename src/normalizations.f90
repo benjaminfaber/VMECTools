@@ -21,14 +21,16 @@ contains
     end do
     ! GENE uses theta as the parallel coordinate 
     pest%x3 = pest%iota*pest%x3
-    pest%jac = 2.0*pest%safety_factor_q/(pest%L_ref*pest%L_ref*pest%L_ref)*pest%jac
     pest%g11 = pest%L_ref * pest%L_ref/(4.0*pest%x1(pest%ix11))*pest%g11 
     pest%g12 = 0.5*pest%L_ref*pest%L_ref*pest%g12
     pest%g22 = pest%x1(pest%ix11) * pest%L_ref * pest%L_ref * pest%g22
     pest%g13 = 0.5*pest%L_ref*pest%L_ref/sqrt(pest%x1(pest%ix11))*pest%g13
     pest%g23 = pest%L_ref*pest%L_ref*sqrt(pest%x1(pest%ix11))*pest%g23
     pest%g33 = pest%L_ref*pest%L_ref*pest%g33
+    pest%curv_drift_x1 = pest%L_ref*pest%L_ref*sqrt(pest%x1(pest%ix11))*pest%curv_drift_x1/pest%bmag 
+    pest%curv_drift_x2 = pest%L_ref*pest%L_ref/(2.0*sqrt(pest%x1(pest%ix11)))*pest%curv_drift_x2/pest%bmag
     pest%bmag = 1.0/pest%B_ref*pest%bmag 
+    pest%jac = 2.0*pest%safety_factor_q/(pest%L_ref*pest%L_ref*pest%L_ref)*pest%jac
 
   end subroutine
 

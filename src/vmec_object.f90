@@ -58,7 +58,7 @@ contains
     real(dp) :: dphi
     logical :: verbose
 
-    verbose = .true.
+    verbose = .false.
 
     if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_file)
     call read_wout_file(VMEC_file, ierr, iopen)

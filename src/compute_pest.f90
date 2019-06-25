@@ -13,6 +13,7 @@ module compute_pest
   use types, only: dp, pi, mu_0
   use vmec_object, only: VMEC_Obj
   use pest_object, only: PEST_Obj
+  use io_core, only: verbose, test
   implicit none
 
   public :: compute_pest_surface, compute_pest_sfl
@@ -65,7 +66,6 @@ contains
     real(dp), dimension(:), allocatable :: d_pressure_d_s_on_half_grid, d_iota_d_s_on_half_grid
 
     integer :: ns
-    logical :: verbose, test
     !*********************************************************************
     ! VMEC variables of interest:
     ! ns = number of flux surfaces used by VMEC
@@ -85,8 +85,6 @@ contains
     ! Beginning of executable statements.
     !*********************************************************************
     ns = pest%vmec%ns
-    verbose = .false.
-    test = .false.
 
     if (verbose) print *,"Entering subroutine compute_pest_surface."
     !*********************************************************************
@@ -106,7 +104,7 @@ contains
 
     ! this gives the sign of the edge toroidal flux
     sign_toroidal_flux = int(sign(1.1,edge_toroidal_flux_over_2pi))
-    write (*,*) 'sign_toroidal_flux', sign_toroidal_flux
+    !write (*,*) 'sign_toroidal_flux', sign_toroidal_flux
 
 
     allocate(normalized_toroidal_flux_full_grid(ns))
@@ -303,7 +301,7 @@ contains
 !*******************************************************************************
 ! Subroutine compute_pest_sfl
 !*******************************************************************************
-  subroutine compute_pest_sfl(zeta_center, &
+  subroutine compute_pest_sfl(x3_center, &
     & number_of_field_periods_to_include,pest)
 
     implicit none
@@ -311,9 +309,9 @@ contains
     ! Input parameters
     !***************************************************************************
 
-    ! The pest%x3 domain is centered at zeta_center. Setting zeta_center = 2*pi*N/nfp for any integer N should
-    ! yield identical results to setting zeta_center = 0, where nfp is the number of field periods (as in VMEC).
-    real(dp), intent(in) :: zeta_center
+    ! The pest%x3 domain is centered at x3_center. Setting x3_center = 2*pi*N/nfp for any integer N should
+    ! yield identical results to setting x3_center = 0, where nfp is the number of field periods (as in VMEC).
+    real(dp), intent(in) :: x3_center
 
     ! If number_of_field_periods_to_include is > 0, then this parameter does what you think:
     ! the extent of the toroidal in pest%x3 will be 2*pi*number_of_field_periods_to_include/nfp.
@@ -355,13 +353,10 @@ contains
     real(dp), dimension(:,:), allocatable :: grad_theta_X, grad_theta_Y, grad_theta_Z
     real(dp), dimension(:,:), allocatable :: grad_psi_X, grad_psi_Y, grad_psi_Z
     real(dp), dimension(:,:), allocatable :: grad_alpha_X, grad_alpha_Y, grad_alpha_Z
-    real(dp), dimension(:,:), allocatable :: B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate
-    real(dp), dimension(:,:), allocatable :: B_cross_grad_s_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha_alternate
+    real(dp), dimension(:,:), allocatable :: B_cross_grad_B_dot_grad_psi, B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate
+    real(dp), dimension(:,:), allocatable :: B_cross_grad_psi_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha_alternate
     real(dp), dimension(:,:), allocatable :: grad_B_X, grad_B_Y, grad_B_Z
     real(dp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
-    logical :: verbose, test
-    verbose = .false.
-    test = .false.
     !*********************************************************************
     ! Read in everything from the vmec wout file using libstell.
     !*********************************************************************
@@ -395,12 +390,7 @@ contains
 
     pest%x2 = [( (j*2*pi) / pest%nx2, j=pest%ix21, pest%ix22 )]
 
-!!$    if (number_of_field_periods_to_include > nfp) then
-!!$       print *,"Error! number_of_field_periods_to_include > nfp"
-!!$       print *,"  number_of_field_periods_to_include =",number_of_field_periods_to_include
-!!$       print *,"  nfp =",nfp
-!!$       stop
-!!$    end if
+
     number_of_field_periods_to_include_final = number_of_field_periods_to_include
     if (number_of_field_periods_to_include <= 0) then
        number_of_field_periods_to_include_final = pest%vmec%nfp
@@ -408,11 +398,11 @@ contains
     end if
 
     if (trim(pest%x3_coord) == 'zeta') then
-      pest%x3 = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+      pest%x3 = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
     end if
 
     if (trim(pest%x3_coord) == 'theta') then
-      pest%x3 = [( pest%safety_factor_q*(zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
+      pest%x3 = [( pest%safety_factor_q*(x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
     end if
 
     !*********************************************************************
@@ -420,7 +410,7 @@ contains
     ! theta_vmec = theta_pest - Lambda.
     !*********************************************************************
 
-    allocate(theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
 
     if (verbose) print *,"  Beginning root solves to determine theta_vmec."
     root_solve_absolute_tolerance = 1.0d-10
@@ -469,28 +459,28 @@ contains
 !    d_B_d_par = 0
 
 
-    allocate(B(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(temp2D(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(sqrt_g(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(R(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_B_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_B_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_B_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_R_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_R_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_R_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Z_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Z_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Z_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Lambda_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Lambda_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Lambda_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_sub_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_sub_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_sub_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_sup_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_sup_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(temp2D(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(sqrt_g(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(R(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_B_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_B_d_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_B_d_s(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_R_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_R_d_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_R_d_s(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Z_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Z_d_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Z_d_s(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_s(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_sub_s(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_sub_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_sub_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_sup_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_sup_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
 
     allocate(d_B_d_s_mnc(ns))
     allocate(d_B_d_s_mns(ns))
@@ -501,42 +491,44 @@ contains
     allocate(d_Lambda_d_s_mnc(ns))
     allocate(d_Lambda_d_s_mns(ns))
 
-    allocate(d_X_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_X_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_X_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Y_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Y_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(d_Y_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_X_d_s(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_X_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_X_d_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Y_d_s(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Y_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(d_Y_d_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
 
-    allocate(grad_s_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_s_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_s_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_theta_vmec_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_theta_vmec_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_theta_vmec_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_zeta_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_zeta_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_zeta_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_theta_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_theta_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_theta_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_psi_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_psi_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_psi_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_alpha_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_alpha_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_alpha_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_s_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_s_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_s_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_zeta_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_zeta_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_zeta_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_theta_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_theta_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_theta_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_psi_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_psi_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_psi_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_alpha_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_alpha_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_alpha_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
     
-    allocate(B_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_B_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_B_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(grad_B_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_cross_grad_B_dot_grad_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_cross_grad_B_dot_grad_alpha_alternate(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_cross_grad_s_dot_grad_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-    allocate(B_cross_grad_s_dot_grad_alpha_alternate(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_B_X(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_B_Y(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(grad_B_Z(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_cross_grad_B_dot_grad_psi(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_cross_grad_B_dot_grad_alpha(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_cross_grad_B_dot_grad_alpha_alternate(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_cross_grad_psi_dot_grad_alpha(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_cross_grad_s_dot_grad_alpha(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
+    allocate(B_cross_grad_s_dot_grad_alpha_alternate(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
 
     B = 0
     sqrt_g = 0
@@ -871,7 +863,7 @@ contains
     !*********************************************************************
     
     if (test) then
-      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(pest%ix21:pest%ix22, pest%ix31:pest%ix32))
       ! Compute (B dot grad theta_pest) / (B dot grad pest%x3):
       B_dot_grad_theta_pest_over_B_dot_grad_zeta = &
         & (B_sup_theta_vmec * (1 + d_Lambda_d_theta_vmec) + B_sup_zeta * d_Lambda_d_zeta) / B_sup_zeta 
@@ -992,8 +984,21 @@ contains
       call test_arrays(1/sqrt_g, temp2D, .false., 1.0e-2, '1/sqrt_g')
     end if
 
-    ! Things for GIST
-    !jac_gist_inv = (L_ref**3)/(2*safety_factor_q)*(1 + d_Lambda_d_theta_vmec)/sqrt_g
+    B_cross_grad_psi_dot_grad_alpha = 0 + &
+      & (B_Y * grad_psi_Z - B_Z * grad_psi_Y) * grad_alpha_X + &         
+      & (B_Z * grad_psi_X - B_X * grad_psi_Z) * grad_alpha_Y + &
+      & (B_X * grad_psi_Y - B_Y * grad_psi_X) * grad_alpha_Z
+
+    B_cross_grad_B_dot_grad_psi = 0 + &
+      & (B_Y * grad_B_Z - B_Z * grad_B_Y) * grad_psi_X + &         
+      & (B_Z * grad_B_X - B_X * grad_B_Z) * grad_psi_Y + &
+      & (B_X * grad_B_Y - B_Y * grad_B_X) * grad_psi_Z
+
+    B_cross_grad_B_dot_grad_alpha = 0 + &
+      & (B_Y * grad_B_Z - B_Z * grad_B_Y) * grad_alpha_X + &         
+      & (B_Z * grad_B_X - B_X * grad_B_Z) * grad_alpha_Y + &
+      & (B_X * grad_B_Y - B_Y * grad_B_X) * grad_alpha_Z
+
 
     !d_B_d_par = -safety_factor_q/L_ref *jac_gist_inv / B * d_B_d_zeta 
 
@@ -1077,6 +1082,12 @@ contains
       pest%g23(:,:,pest%ix11) = grad_alpha_X * grad_theta_X + grad_alpha_Y * grad_theta_Y + grad_alpha_Z * grad_theta_Z
       pest%g33(:,:,pest%ix11) = grad_theta_X * grad_theta_X + grad_theta_Y * grad_theta_Y + grad_theta_Z * grad_theta_Z
     end if
+
+    pest%gradB_drift_x2(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*B_cross_grad_B_dot_grad_psi 
+    pest%gradB_drift_x1(:,:,pest%ix11) = B_cross_grad_B_dot_grad_alpha
+
+    pest%curv_drift_x1(:,:,pest%ix11) = sign_toroidal_flux*(B_cross_grad_B_dot_grad_alpha / B + 2.0/(pest%B_ref*(pest%L_ref**2))* mu_0 * d_pressure_d_s * B_cross_grad_psi_dot_grad_alpha / (B*B)) 
+    pest%curv_drift_x2(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*B_cross_grad_B_dot_grad_psi / (B)
 
     pest%d_Lambda_d_theta_vmec(:,:,pest%ix11) = d_Lambda_d_theta_vmec
     !*********************************************************************
@@ -1186,8 +1197,10 @@ contains
     deallocate(grad_B_X)
     deallocate(grad_B_Y)
     deallocate(grad_B_Z)
+    deallocate(B_cross_grad_B_dot_grad_psi)
     deallocate(B_cross_grad_B_dot_grad_alpha)
     deallocate(B_cross_grad_B_dot_grad_alpha_alternate)
+    deallocate(B_cross_grad_psi_dot_grad_alpha)
     deallocate(B_cross_grad_s_dot_grad_alpha)
     deallocate(B_cross_grad_s_dot_grad_alpha_alternate)
 
@@ -1207,7 +1220,7 @@ contains
 
       implicit none
 
-      real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: array1, array2
+      real(dp), dimension(pest%ix21:pest%ix22, pest%ix31:pest%ix32) :: array1, array2
       real(dp) :: tolerance
       character(len=*) :: name
       logical :: should_be_0

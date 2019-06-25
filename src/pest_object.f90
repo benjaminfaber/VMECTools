@@ -9,7 +9,7 @@ module pest_object
   use vmec_object, only: VMEC_Obj, create_VMEC_Obj, destroy_VMEC_Obj
   implicit none
 
-  public PEST_Obj, create_PEST_Obj, destroy_PEST_Obj
+  public PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values
 
   private
 
@@ -74,8 +74,10 @@ module pest_object
     real(dp), dimension(:,:,:), allocatable :: g13 ! Metric element gsz
     real(dp), dimension(:,:,:), allocatable :: g23 ! Metric element gaz
     real(dp), dimension(:,:,:), allocatable :: g33 ! Metric element gzz
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_x1 ! Derivative of |B| w.r.t. the 1 coordinate
-    real(dp), dimension(:,:,:), allocatable :: d_B_d_x2 ! Derivative of |B| w.r.t. the 2 coordinate
+    real(dp), dimension(:,:,:), allocatable :: gradB_drift_x1 ! Derivative of |B| w.r.t. the 1 coordinate
+    real(dp), dimension(:,:,:), allocatable :: gradB_drift_x2 ! Derivative of |B| w.r.t. the 2 coordinate
+    real(dp), dimension(:,:,:), allocatable :: curv_drift_x1 ! Derivative of |B| w.r.t. the 1 coordinate
+    real(dp), dimension(:,:,:), allocatable :: curv_drift_x2 ! Derivative of |B| w.r.t. the 2 coordinate
     real(dp), dimension(:,:,:), allocatable :: d_B_d_x3 ! Derivative of |B| w.t.t. the 3 coordinate
 
     real(dp), dimension(:,:,:), allocatable :: Rsurf ! The R coordinate of the surfaces
@@ -147,20 +149,13 @@ contains
     integer, intent(in) :: n_field_lines, n_parallel_pts
     real(dp), dimension(:), intent(in) :: surfaces
     integer :: j, nsurf
-    real(dp) :: edge_toroidal_flux_over_2pi
-    character(len=7) :: norm_type
-    character(len=5) :: x3_coord
     logical :: verbose
-    norm_type = 'minor_r'
-    x3_coord = 'theta'
-    verbose = .true.
     nsurf = size(surfaces)
 
     pest%vmec = vmec
     pest%nx1 = nsurf
     pest%nx2 = n_field_lines
     pest%nx3 = n_parallel_pts+1
-    pest%x3_coord = x3_coord
 
     pest%ix11 = 0
     pest%ix12 = nsurf-1
@@ -180,8 +175,10 @@ contains
     if(allocated(pest%g13)) deallocate(pest%g13)
     if(allocated(pest%g23)) deallocate(pest%g23)
     if(allocated(pest%g33)) deallocate(pest%g33)
-    if(allocated(pest%d_B_d_x1)) deallocate(pest%d_B_d_x1)
-    if(allocated(pest%d_B_d_x2)) deallocate(pest%d_B_d_x2)
+    if(allocated(pest%gradB_drift_x1)) deallocate(pest%curv_drift_x1)
+    if(allocated(pest%gradB_drift_x2)) deallocate(pest%curv_drift_x2)
+    if(allocated(pest%curv_drift_x1)) deallocate(pest%curv_drift_x1)
+    if(allocated(pest%curv_drift_x2)) deallocate(pest%curv_drift_x2)
     if(allocated(pest%d_B_d_x3)) deallocate(pest%d_B_d_x3)
     if(allocated(pest%Rsurf)) deallocate(pest%Rsurf)
     if(allocated(pest%Zsurf)) deallocate(pest%Zsurf)
@@ -190,23 +187,42 @@ contains
     allocate(pest%x1(pest%ix11:pest%ix12))
     allocate(pest%x2(pest%ix21:pest%ix22))
     allocate(pest%x3(pest%ix31:pest%ix32))
-    allocate(pest%bmag(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%jac(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%g11(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%g12(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%g22(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%g13(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%g23(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%g33(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%d_B_d_x1(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%d_B_d_x2(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%d_B_d_x3(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%Rsurf(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%Zsurf(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
-    allocate(pest%d_Lambda_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%bmag(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%jac(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%g11(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%g12(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%g22(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%g13(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%g23(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%g33(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%curv_drift_x1(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%curv_drift_x2(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%gradB_drift_x1(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%gradB_drift_x2(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%d_B_d_x3(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%Rsurf(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%Zsurf(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
+    allocate(pest%d_Lambda_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
 
     pest%x1 = surfaces
+  end function
 
+  type(PEST_Obj) function create_from_VMEC_file(VMEC_file,surfaces,n_alpha,n_parallel) result(pest)
+    character(len=2000), intent(in) :: VMEC_file
+    integer, intent(in) :: n_alpha, n_parallel
+    real(dp), dimension(:), intent(in) :: surfaces
+    type(VMEC_Obj) :: vmec
+
+    vmec = create_VMEC_Obj(VMEC_file)
+    pest = create_from_VMEC_Obj(vmec,surfaces,n_alpha,n_parallel)
+  end function
+
+  subroutine set_PEST_reference_values(pest,norm_type)
+    type(PEST_Obj), intent(inout) :: pest
+    character(len=7), intent(in) :: norm_type
+    real(dp) :: edge_toroidal_flux_over_2pi
+    logical :: verbose
+    verbose = .false.
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Set reference values
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  
@@ -228,20 +244,8 @@ contains
        print *,"  Reference length for normalization:",pest%L_ref," meters."
        print *,"  Reference magnetic field strength normalization:",pest%B_ref," Tesla."
     end if
+  end subroutine
 
-
-  end function
-
-  type(PEST_Obj) function create_from_VMEC_file(VMEC_file,surfaces,n_alpha,n_parallel) result(pest)
-    character(len=2000), intent(in) :: VMEC_file
-    integer, intent(in) :: n_alpha, n_parallel
-    real(dp), dimension(:), intent(in) :: surfaces
-    type(VMEC_Obj) :: vmec
-
-    vmec = create_VMEC_Obj(VMEC_file)
-    pest = create_from_VMEC_Obj(vmec,surfaces,n_alpha,n_parallel)
-  end function
- 
   subroutine destroy_PEST_Obj(pest)
     type(PEST_Obj), intent(inout) :: pest
     
@@ -257,8 +261,10 @@ contains
     deallocate(pest%g13)
     deallocate(pest%g23)
     deallocate(pest%g33)
-    deallocate(pest%d_B_d_x1)
-    deallocate(pest%d_B_d_x2)
+    deallocate(pest%gradB_drift_x1)
+    deallocate(pest%gradB_drift_x2)
+    deallocate(pest%curv_drift_x1)
+    deallocate(pest%curv_drift_x2)
     deallocate(pest%d_B_d_x3)
     deallocate(pest%Rsurf)
     deallocate(pest%Zsurf)

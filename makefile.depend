@@ -5,7 +5,7 @@ objs/types.o:
 objs/io_core.o: objs/types.mod objs/pest_object.mod
 objs/vmec_object.o: $(LIBSTELL) objs/types.mod
 objs/pest_object.o: objs/vmec_object.mod objs/types.mod
-objs/compute_pest.o: objs/types.mod objs/pest_object.mod
+objs/compute_pest.o: objs/types.mod objs/pest_object.mod objs/io_core.mod
 objs/vmec2pest.o: objs/pest_object.mod objs/io_core.mod objs/compute_pest.mod objs/normalizations.mod
 objs/normalizations.o: objs/pest_object.mod objs/types.mod
 
