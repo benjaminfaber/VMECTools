@@ -4,16 +4,9 @@ OBJS_DIR := objs
 SRC_F90 := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f90' | sed "s|^\./||"))
 SRC_F := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f' | sed "s|^\./||"))
 
-$(info $(SRC_F90))
-$(info $(SRC_F))
-
 OBJS_F90 := $(subst .f90,.o,$(SRC_F90))
 OBJS_F := $(subst .f,.o,$(SRC_F))
 OBJS_LINK := $(addprefix $(OBJS_DIR)/,$(OBJS_F90)) $(addprefix $(OBJS_DIR)/,$(OBJS_F))
-
-$(info $(OBJS_F90))
-$(info $(OBJS_F))
-$(info $(OBJS_LINK))
 
 INCS := -I$(OBJS_DIR) -J$(OBJS_DIR)
 
@@ -50,35 +43,41 @@ LIBSTELL_DIR := mini_libstell
 # that comes packaged with this repository, or else it should point to a libstell.a library elsewhere on your system.
 LIBSTELL := $(LIBSTELL_DIR)/mini_libstell.a
 
-EXEC := vmec2sfl
-all: $(EXEC)
-libstell: $(LIBSTELL)
+VMEC2PEST := vmec2pest
+all: v2p
+v2p: libstell $(VMEC2PEST)
+#libstell: $(LIBSTELL)
 
 export
 
 include makefile.depend
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f90
-	$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
+	@$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f
-	$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
+	@$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
 
-$(EXEC): $(OBJS_LINK)
-	$(FC) -o $@ $^ $(LIBSTELL) $(LDFLAGS)
+$(VMEC2PEST): $(OBJS_LINK)
+	@$(FC) -o $@ $^ $(LIBSTELL) $(LDFLAGS)
 
-$(LIBSTELL):
-	$(MAKE) -C mini_libstell
+#$(LIBSTELL):
+libstell:
+	@$(MAKE) -C mini_libstell
 
-.PHONY: all clean cleanexec
+.PHONY: all allclean cleanexec libclean objclean
 
-clean:
-	rm -f $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(OBJ_DIR)/*.MOD $(LIBSTELL_DIR)/*.o $(LIBSTELL_DIR)/*.mod $(LIBSTELL_DIR)/*.MOD *~
+allclean:
+	rm -f $(OBJS_DIR)/*.o $(OBJS_DIR)/*.mod $(OBJS_DIR)/*.MOD $(LIBSTELL_DIR)/*.o $(LIBSTELL_DIR)/*.mod $(LIBSTELL_DIR)/*.MOD *~
 
 cleanexec:
-	vmec2sfl
-	
-#cd mini_libstell; rm -f *.o *.mod *.MOD *.a
+	$(VMEC2PEST)
+
+objclean:
+	rm -f $(OBJS_DIR)/*.o $(OBJS_DIR)/*.mod $(OBJS_DIR)/*.MOD
+
+libclean:
+	rm -f $(LIBSTELL_DIR)/*.o $(LIBSTELL_DIR)/*.mod $(LIBSTELL_DIR)/*.MOD
 
 test_make:
 	@echo HOSTNAME is $(HOST)

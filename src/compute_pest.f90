@@ -8,73 +8,70 @@
 ! coordinate systems.  As such, some of the variable names have bene modified.
 ! Skip down ~25 lines for detailed description of the input and output parameters.
 
-module vmec2sfl_mod
+module compute_pest 
 
-  use vmec2sfl_vars_mod
+  use types, only: dp, pi, mu_0
+  use vmec_object, only: VMEC_Obj
+  use pest_object, only: PEST_Obj
   implicit none
 
+  public :: compute_pest_surface, compute_pest_sfl
+  
   private
 
-  public :: get_surface_quantities, vmec2sfl
-
+  ! Module wide to variables
   integer :: sign_toroidal_flux
-  real(rp) :: theta_pest_target, zeta0, edge_toroidal_flux_over_2pi
-  real(rp) :: iota, ds, d_pressure_d_s, d_iota_d_s
-  real(rp), dimension(2) :: vmec_radial_weight_full, vmec_radial_weight_half
+  real(dp) :: theta_pest_target, zeta0, edge_toroidal_flux_over_2pi
+  real(dp) :: ds, d_pressure_d_s, d_iota_d_s
+  real(dp), dimension(2) :: vmec_radial_weight_full, vmec_radial_weight_half
   integer, dimension(2) :: vmec_radial_index_full, vmec_radial_index_half
 
 contains
 
-  subroutine get_surface_quantities(desired_normalized_toroidal_flux,&
-    &vmec_surface_option)
+  subroutine compute_pest_surface(desired_normalized_toroidal_flux,&
+    &vmec_surface_option, pest)
 
-    use read_wout_mod, nzgrid_vmec => nzgrid ! VMEC has a variable nzgrid which conflicts with our nzgrid, so rename vmec's version.
+    !use read_wout_mod,pest%ix32_vmec => pest%nx3 ! VMEC has a variable ngzrid which conflicts with our pest%nx3, so rename vmec's version.
 
     implicit none
     !*********************************************************************
     ! Input parameters
     !*********************************************************************
-
-
     ! The parameter desired_normalized_toroidal_flux determines which flux surface from the VMEC file will be used
     ! for the computation. This parameter should lie in the interval [0,1].
-    real(rp), intent(in) :: desired_normalized_toroidal_flux
+    real(dp), intent(in) :: desired_normalized_toroidal_flux
 
 
     ! If vmec_surface_option = 0, the magnetic surface specified by desired_normalized_toroidal_flux will be used,
-    ! by interpolating between the surfaces available in the vmec file.
+    ! by intedpolating between the surfaces available in the vmec file.
     ! If vmec_surface_option = 1, the magnetic surface on vmec's HALF radial mesh will be used that is closest to desired_normalized_toroidal_flux.
     ! If vmec_surface_option = 2, the magnetic surface on vmec's FULL radial mesh will be used that is closest to desired_normalized_toroidal_flux.    
     ! Other values of vmec_surface_option will cause the program to abort with an error.
     integer, intent(in) :: vmec_surface_option
+
+    type(PEST_Obj), intent(inout) :: pest
 
 
     !***************************************************************************
     ! Output parameters
     !***************************************************************************
     !! Pass back number of field periods to the interface routine
-    !real(rp), intent(out) :: local_nfp
-
-    !*********************************************************************
-    ! Variables used internally by this subroutine
-    !*********************************************************************
-
-    real(rp), parameter :: pi = 3.1415926535897932d+0
-    real(rp), parameter :: zero = 0.0d+0
-    real(rp), parameter :: one = 1.0d+0
-    real(rp), parameter :: mu_0 = 4*pi*(1.0d-7)
+    !real(dp), intent(out) :: local_nfp
 
     integer :: j, index
     !integer :: ierr, iopen 
-    real(rp) :: dphi, min_dr2
-    real(rp), dimension(:), allocatable :: dr2, normalized_toroidal_flux_full_grid, normalized_toroidal_flux_half_grid
-    real(rp), dimension(:), allocatable :: d_pressure_d_s_on_half_grid, d_iota_d_s_on_half_grid
+    real(dp) :: dphi, min_dr2
+    real(dp), dimension(:), allocatable :: dr2, normalized_toroidal_flux_full_grid, normalized_toroidal_flux_half_grid
+    real(dp), dimension(:), allocatable :: d_pressure_d_s_on_half_grid, d_iota_d_s_on_half_grid
+
+    integer :: ns
+    logical :: verbose, test
     !*********************************************************************
     ! VMEC variables of interest:
     ! ns = number of flux surfaces used by VMEC
     ! nfp = number of field periods, e.g. 5 for W7-X, 4 for HSX
-    ! iotas = rotational transform (1/q) on the half grid.
-    ! iotaf = rotational transform on the full grid.
+    ! pest%iotas = rotational transform (1/q) on the half grid.
+    ! pest%iotaf = rotational transform on the full grid.
     ! presf = pressure on the full grid.
     !
     ! All VMEC quantities (B, pressure, etc) are in SI units.
@@ -87,9 +84,11 @@ contains
     !*********************************************************************
     ! Beginning of executable statements.
     !*********************************************************************
+    ns = pest%vmec%ns
+    verbose = .false.
+    test = .false.
 
-    if (verbose) print *,"Entering subroutine vmec2sfl."
-
+    if (verbose) print *,"Entering subroutine compute_pest_surface."
     !*********************************************************************
     ! Do some validation.
     !*********************************************************************
@@ -103,94 +102,12 @@ contains
        stop
     end if
 
-    !*********************************************************************
-    ! Read in everything from the vmec wout file using libstell.
-    !*********************************************************************
-    
-    !nfp = nfp_vmec
-    !local_nfp = nfp
-
-    ! There is a bug in libstell read_wout_file for ASCII-format wout files, in which the xm_nyq and xn_nyq arrays are sometimes
-    ! not populated. The next few lines here provide a workaround:
-    if (maxval(abs(xm_nyq)) < 1 .and. maxval(abs(xn_nyq)) < 1) then
-       if (mnmax_nyq == mnmax) then
-          if (verbose) print *,"xm_nyq and xn_nyq arrays are not populated in the wout file. Using xm and xn instead."
-          xm_nyq = xm
-          xn_nyq = xn
-       else
-          print *,"Error! xm_nyq and xn_nyq arrays are not populated in the wout file, and mnmax_nyq != mnmax."
-          stop
-       end if
-    end if
-
-    edge_toroidal_flux_over_2pi = phi(ns) / (2*pi) * isigng ! isigns is called signgs in the wout*.nc file. Why is this signgs here?
+    edge_toroidal_flux_over_2pi = pest%vmec%phi(ns) / (2*pi) * pest%vmec%isigng ! isigns is called signgs in the wout*.nc file. Why is this signgs here?
 
     ! this gives the sign of the edge toroidal flux
     sign_toroidal_flux = int(sign(1.1,edge_toroidal_flux_over_2pi))
     write (*,*) 'sign_toroidal_flux', sign_toroidal_flux
 
-    ! Set reference length and magnetic field for GS2's normalization, 
-    ! using the choices made by Pavlos Xanthopoulos in GIST:
-    L_reference = Aminor ! Note that 'Aminor' in read_wout_mod is called 'Aminor_p' in the wout*.nc file.
-    B_reference = 2 * abs(edge_toroidal_flux_over_2pi) / (L_reference * L_reference)
-    if (verbose) then
-       print *,"  Reference length for GS2 normalization:",L_reference," meters."
-       print *,"  Reference magnetic field strength for GS2 normalization:",B_reference," Tesla."
-    end if
-
-    ! --------------------------------------------------------------------------------
-    ! Do some sanity checking to ensure the VMEC arrays have some expected properties.
-    ! --------------------------------------------------------------------------------
-
-    ! 'phi' is vmec's array of the toroidal flux (not divided by 2pi!) on vmec's radial grid.
-    if (abs(phi(1)) > 1d-14) then
-       print *,"Error! VMEC phi array does not begin with 0."
-       print *,"phi:",phi
-       stop
-    end if
-
-    dphi = phi(2) - phi(1)
-    do j=3,ns
-       if (abs(phi(j)-phi(j-1)-dphi) > 1d-11) then
-          print *,"Error! VMEC phi array is not uniformly spaced."
-          print *,"phi:",phi
-          stop
-       end if
-    end do
-
-    ! The variable called 'phips' in the wout file is called just 'phip' in read_wout_mod.F.
-    ! phips is on the half-mesh, so skip first point.
-    do j=2,ns
-       if (abs(phip(j)+phi(ns)/(2*pi)) > 1d-11) then
-          print *,"Error! VMEC phips array is not constant and equal to -phi(ns)/(2*pi)."
-          print *,"phip(s):",phip
-          stop
-       end if
-    end do
-
-    ! The first mode in the m and n arrays should be m=n=0:
-    if (xm(1) .ne. 0) stop "First element of xm in the wout file should be 0."
-    if (xn(1) .ne. 0) stop "First element of xn in the wout file should be 0."
-    if (xm_nyq(1) .ne. 0) stop "First element of xm_nyq in the wout file should be 0."
-    if (xn_nyq(1) .ne. 0) stop "First element of xn_nyq in the wout file should be 0."
-
-    ! Lambda should be on the half mesh, so its value at radial index 1 should be 0 for all (m,n)
-    if (maxval(abs(lmns(:,1))) > 0) then
-       print *,"Error! Expected lmns to be on the half mesh, but its value at radial index 1 is nonzero."
-       print *,"Here comes lmns(:,1):", lmns(:,1)
-       stop
-    end if
-    if (lasym) then
-       if (maxval(abs(lmnc(:,1))) > 0) then
-          print *,"Error! Expected lmnc to be on the half mesh, but its value at radial index 1 is nonzero."
-          print *,"Here comes lmnc(:,1):", lmnc(:,1)
-          stop
-       end if
-    end if
-
-    ! --------------------------------------------------------------------------------
-    ! End of sanity checks.
-    ! --------------------------------------------------------------------------------
 
     allocate(normalized_toroidal_flux_full_grid(ns))
     normalized_toroidal_flux_full_grid = [( real(j-1)/(ns-1), j=1,ns )]
@@ -214,7 +131,7 @@ contains
     select case (vmec_surface_option)
     case (0)
        ! Use exact radius requested.
-       normalized_toroidal_flux_used = desired_normalized_toroidal_flux
+       pest%x1(pest%ix11) = desired_normalized_toroidal_flux
 
     case (1)
        ! Use nearest value of the VMEC half grid
@@ -233,7 +150,7 @@ contains
           end if
        end do
 
-       normalized_toroidal_flux_used = normalized_toroidal_flux_half_grid(index)
+       pest%x1(pest%ix11) = normalized_toroidal_flux_half_grid(index)
        deallocate(dr2)
 
     case (2)
@@ -253,7 +170,7 @@ contains
           end if
        end do
 
-       normalized_toroidal_flux_used = normalized_toroidal_flux_full_grid(index)
+       pest%x1(pest%ix11) = normalized_toroidal_flux_full_grid(index)
        deallocate(dr2)
 
     case default
@@ -265,8 +182,8 @@ contains
     ! Done choosing the actual radius to use.
     ! --------------------------------------------------------------------------------
 
-    ! In general, we get quantities for gs2 by linear interpolation, taking a weighted average of the quantity from
-    ! 2 surfaces in the VMEC file. Sometimes the weights are 0 and 1, i.e. no interpolation is needed.
+    ! In general, we get quantities for gs2 by linear intedpolation, taking a weighted average of the quantity from
+    ! 2 surfaces in the VMEC file. Sometimes the weights are 0 and 1, i.e. no intedpolation is needed.
 
     ! For any VMEC quantity Q on the full grid, the value used in GS2 will be
     !  Q_gs2 = Q(vmec_radial_index_full(1))*vmec_radial_weight_full(1) + Q(vmec_radial_index_full(2))*vmec_radial_weight_full(2)
@@ -276,58 +193,58 @@ contains
 
 
     ! Handle quantities for the full grid
-    if (normalized_toroidal_flux_used>1) then
-       stop "Error! normalized_toroidal_flux_used cannot be >1"
-    elseif (normalized_toroidal_flux_used<0) then
-       stop "Error! normalized_toroidal_flux_used cannot be <0"
-    elseif (normalized_toroidal_flux_used==1) then
+    if (pest%x1(pest%ix11)>1) then
+       stop "Error! pest%x1(pest%ix11) cannot be >1"
+    elseif (pest%x1(pest%ix11)<0) then
+       stop "Error! pest%x1(pest%ix11) cannot be <0"
+    elseif (pest%x1(pest%ix11)==1) then
        vmec_radial_index_full(1) = ns-1
        vmec_radial_index_full(2) = ns
-       vmec_radial_weight_full(1) = zero
+       vmec_radial_weight_full(1) = 0.0d0
     else
-       ! normalized_toroidal_flux_used is >= 0 and <1
+       ! pest%x1(pest%ix11) is >= 0 and <1
        ! This is the most common case.
-       vmec_radial_index_full(1) = floor(normalized_toroidal_flux_used*(ns-1))+1
+       vmec_radial_index_full(1) = floor(pest%x1(pest%ix11)*(ns-1))+1
        vmec_radial_index_full(2) = vmec_radial_index_full(1) + 1
-       vmec_radial_weight_full(1) = vmec_radial_index_full(1) - normalized_toroidal_flux_used*(ns-one)
+       vmec_radial_weight_full(1) = vmec_radial_index_full(1) - pest%x1(pest%ix11)*(ns-1.0d0)
     end if
-    vmec_radial_weight_full(2) = one - vmec_radial_weight_full(1)
+    vmec_radial_weight_full(2) = 1.0d0 - vmec_radial_weight_full(1)
 
     ! Handle quantities for the half grid
-    if (normalized_toroidal_flux_used < normalized_toroidal_flux_half_grid(1)) then
+    if (pest%x1(pest%ix11) < normalized_toroidal_flux_half_grid(1)) then
        print *,"Warning: extrapolating beyond the end of VMEC's half grid."
        print *,"(Extrapolating towards the magnetic axis.) Results are likely to be inaccurate."
 
        ! We start at element 2 since element 1 is always 0 for quantities on the half grid.
        vmec_radial_index_half(1) = 2
        vmec_radial_index_half(2) = 3
-       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(2) - normalized_toroidal_flux_used) / (normalized_toroidal_flux_half_grid(2) - normalized_toroidal_flux_half_grid(1))
+       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(2) - pest%x1(pest%ix11)) / (normalized_toroidal_flux_half_grid(2) - normalized_toroidal_flux_half_grid(1))
 
-    elseif (normalized_toroidal_flux_used > normalized_toroidal_flux_half_grid(ns-1)) then
+    elseif (pest%x1(pest%ix11) > normalized_toroidal_flux_half_grid(ns-1)) then
        print *,"Warning: extrapolating beyond the end of VMEC's half grid."
        print *,"(Extrapolating towards the last closed flux surface.) Results may be inaccurate."
        vmec_radial_index_half(1) = ns-1
        vmec_radial_index_half(2) = ns
-       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(ns-1) - normalized_toroidal_flux_used) &
+       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(ns-1) - pest%x1(pest%ix11)) &
             / (normalized_toroidal_flux_half_grid(ns-1) - normalized_toroidal_flux_half_grid(ns-2))
 
-    elseif (normalized_toroidal_flux_used == normalized_toroidal_flux_half_grid(ns-1)) then
+    elseif (pest%x1(pest%ix11) == normalized_toroidal_flux_half_grid(ns-1)) then
        ! We are exactly at the last point of the half grid
        vmec_radial_index_half(1) = ns-1
        vmec_radial_index_half(2) = ns
-       vmec_radial_weight_half(1) = zero
+       vmec_radial_weight_half(1) = 0.0d0
     else
-       ! normalized_toroidal_flux_used is inside the half grid.
+       ! pest%x1(pest%ix11) is inside the half grid.
        ! This is the most common case.
-       vmec_radial_index_half(1) = floor(normalized_toroidal_flux_used*(ns-1) + 0.5d+0)+1
+       vmec_radial_index_half(1) = floor(pest%x1(pest%ix11)*(ns-1) + 0.5d+0)+1
        if (vmec_radial_index_half(1) < 2) then
           ! This can occur sometimes due to roundoff error.
           vmec_radial_index_half(1) = 2
        end if
        vmec_radial_index_half(2) = vmec_radial_index_half(1) + 1
-       vmec_radial_weight_half(1) = vmec_radial_index_half(1) - normalized_toroidal_flux_used*(ns-one) - (0.5d+0)
+       vmec_radial_weight_half(1) = vmec_radial_index_half(1) - pest%x1(pest%ix11)*(ns-1.0d0) - (0.5d+0)
     end if
-    vmec_radial_weight_half(2) = one-vmec_radial_weight_half(1)
+    vmec_radial_weight_half(2) = 1.0d0-vmec_radial_weight_half(1)
 
     if (verbose) then
        if (abs(vmec_radial_weight_half(1)) < 1e-14) then
@@ -335,10 +252,10 @@ contains
        elseif (abs(vmec_radial_weight_half(2)) < 1e-14) then
           print "(a,i4,a,i4,a)","   Using radial index ",vmec_radial_index_half(1)," of ",ns," from vmec's half mesh."
        else
-          print "(a,i4,a,i4,a,i4,a)", "   Interpolating using radial indices ",vmec_radial_index_half(1)," and ",vmec_radial_index_half(2),&
+          print "(a,i4,a,i4,a,i4,a)", "   Intedpolating using radial indices ",vmec_radial_index_half(1)," and ",vmec_radial_index_half(2),&
                " of ",ns," from vmec's half mesh."
           print "(a,f17.14,a,f17.14)", "   Weights for half mesh = ",vmec_radial_weight_half(1)," and ",vmec_radial_weight_half(2)
-          print "(a,i4,a,i4,a,i4,a)", "   Interpolating using radial indices ",vmec_radial_index_full(1)," and ",vmec_radial_index_full(2),&
+          print "(a,i4,a,i4,a,i4,a)", "   Intedpolating using radial indices ",vmec_radial_index_full(1)," and ",vmec_radial_index_full(2),&
                " of ",ns," from vmec's full mesh."
           print "(a,f17.14,a,f17.14)", "   Weights for full mesh = ",vmec_radial_weight_full(1)," and ",vmec_radial_weight_full(2)
        end if
@@ -349,29 +266,29 @@ contains
     ! we ended up choosing.
     !*********************************************************************
 
-    iota = iotas(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
-         + iotas(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
-    if (verbose) print *,"  iota =",iota
-    safety_factor_q = 1/iota
+    pest%iota = pest%vmec%iotas(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
+         + pest%vmec%iotas(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
+    if (verbose) print *,"  pest%iota =",pest%iota
+    pest%safety_factor_q = 1/pest%iota
 
     allocate(d_iota_d_s_on_half_grid(ns))
     d_iota_d_s_on_half_grid = 0
     ds = normalized_toroidal_flux_full_grid(2) - normalized_toroidal_flux_full_grid(1)
     if (verbose) print *,"  ds =",ds
-    d_iota_d_s_on_half_grid(2:ns) = (iotaf(2:ns) - iotaf(1:ns-1)) / ds
+    d_iota_d_s_on_half_grid(2:ns) = (pest%vmec%iotaf(2:ns) - pest%vmec%iotaf(1:ns-1)) / ds
     d_iota_d_s =  &
          d_iota_d_s_on_half_grid(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
          + d_iota_d_s_on_half_grid(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
     deallocate(d_iota_d_s_on_half_grid)
-    if (verbose) print *,"  d iota / d s =",d_iota_d_s
+    if (verbose) print *,"  d pest%iota / d s =",d_iota_d_s
     ! shat = (r/q)(dq/dr) where r = a sqrt(s).
-    !      = - (r/iota) (d iota / d r) = -2 (s/iota) (d iota / d s)
-    shat = (-2 * normalized_toroidal_flux_used / iota) * d_iota_d_s
+    !      = - (r/pest%iota) (d pest%iota / d r) = -2 (s/pest%iota) (d pest%iota / d s)
+    pest%shat = (-2 * pest%x1(pest%ix11) / pest%iota) * d_iota_d_s
 
     allocate(d_pressure_d_s_on_half_grid(ns))
     d_pressure_d_s_on_half_grid = 0
     ds = normalized_toroidal_flux_full_grid(2) - normalized_toroidal_flux_full_grid(1)
-    d_pressure_d_s_on_half_grid(2:ns) = (presf(2:ns) - presf(1:ns-1)) / ds
+    d_pressure_d_s_on_half_grid(2:ns) = (pest%vmec%presf(2:ns) - pest%vmec%presf(1:ns-1)) / ds
     d_pressure_d_s =  &
          d_pressure_d_s_on_half_grid(vmec_radial_index_half(1)) * vmec_radial_weight_half(1) &
          + d_pressure_d_s_on_half_grid(vmec_radial_index_half(2)) * vmec_radial_weight_half(2)
@@ -380,79 +297,71 @@ contains
 
     deallocate(normalized_toroidal_flux_full_grid)
     deallocate(normalized_toroidal_flux_half_grid)
-  end subroutine get_surface_quantities
+  end subroutine compute_pest_surface
 
 
 !*******************************************************************************
-! Subroutine vmec2sfl
+! Subroutine compute_pest_sfl
 !*******************************************************************************
-  subroutine vmec2sfl(nalpha, nzgrid, zeta_center, &
-    & number_of_field_periods_to_include)
-
-    use read_wout_mod, nzgrid_vmec => nzgrid  ! VMEC has a variable nzgrid which conflicts with our nzgrid, so rename vmec's version.
+  subroutine compute_pest_sfl(zeta_center, &
+    & number_of_field_periods_to_include,pest)
 
     implicit none
     !***************************************************************************
     ! Input parameters
     !***************************************************************************
 
-    ! nalpha is the number of grid points in the alpha coordinate:
-    integer, intent(in) :: nalpha
-
-    ! The zeta grid has nzgrid*2+1 points, including the "repeated" point at index -nzgrid and +nzgrid.
-    integer, intent(in) :: nzgrid
-
-    ! The zeta domain is centered at zeta_center. Setting zeta_center = 2*pi*N/nfp for any integer N should
+    ! The pest%x3 domain is centered at zeta_center. Setting zeta_center = 2*pi*N/nfp for any integer N should
     ! yield identical results to setting zeta_center = 0, where nfp is the number of field periods (as in VMEC).
-    real(rp) :: zeta_center
+    real(dp), intent(in) :: zeta_center
 
     ! If number_of_field_periods_to_include is > 0, then this parameter does what you think:
-    ! the extent of the toroidal in zeta will be 2*pi*number_of_field_periods_to_include/nfp.
+    ! the extent of the toroidal in pest%x3 will be 2*pi*number_of_field_periods_to_include/nfp.
     ! If number_of_field_periods_to_include is <= 0, the entire 2*pi toroidal domain will be included.
-    real(rp) :: number_of_field_periods_to_include
+    real(dp), intent(in) :: number_of_field_periods_to_include
+    type(PEST_Obj), intent(inout) :: pest
 
 
     !*********************************************************************
     ! Variables used internally by this subroutine
     !*********************************************************************
 
-    real(rp), parameter :: pi = 3.1415926535897932d+0
-    real(rp), parameter :: zero = 0.0d+0
-    real(rp), parameter :: one = 1.0d+0
-    real(rp), parameter :: mu_0 = 4*pi*(1.0d-7)
-
-    integer :: j, iz, ia, which_surface, isurf, m, n, imn, imn_nyq
-    real(rp) :: angle, sin_angle, cos_angle, temp 
-    real(rp), dimension(:,:), allocatable :: theta_vmec
+    integer :: j, iz, iztemp, ia, which_surface, isurf, m, n, imn, imn_nyq, ns
+    real(dp) :: angle, sin_angle, cos_angle, temp 
+    real(dp), dimension(:,:), allocatable :: theta_vmec
     !integer :: ierr, iopen, fzero_flag
     integer :: fzero_flag
-    real(rp) :: number_of_field_periods_to_include_final
-    real(rp) :: d_pressure_d_s, scale_factor
-    real(rp) :: theta_vmec_min, theta_vmec_max, sqrt_s
-    real(rp) :: root_solve_absolute_tolerance, root_solve_relative_tolerance
+    real(dp) :: number_of_field_periods_to_include_final
+    real(dp) :: d_pressure_d_s, scale_factor
+    real(dp) :: theta_vmec_min, theta_vmec_max, sqrt_s
+    real(dp) :: root_solve_absolute_tolerance, root_solve_relative_tolerance
     logical :: non_Nyquist_mode_available, found_imn
-    real(rp), dimension(:,:), allocatable :: B, sqrt_g, R, B_dot_grad_theta_pest_over_B_dot_grad_zeta, temp2D
-    real(rp), dimension(:,:), allocatable :: d_B_d_theta_vmec, d_B_d_zeta, d_B_d_s
-    real(rp), dimension(:,:), allocatable :: d_R_d_theta_vmec, d_R_d_zeta, d_R_d_s
-    real(rp), dimension(:,:), allocatable :: d_Z_d_theta_vmec, d_Z_d_zeta, d_Z_d_s
-    real(rp), dimension(:,:), allocatable :: d_X_d_theta_vmec, d_X_d_zeta, d_X_d_s
-    real(rp), dimension(:,:), allocatable :: d_Y_d_theta_vmec, d_Y_d_zeta, d_Y_d_s
-    real(rp), dimension(:,:), allocatable :: d_Lambda_d_theta_vmec, d_Lambda_d_zeta, d_Lambda_d_s
-    real(rp), dimension(:,:), allocatable :: B_sub_s, B_sub_theta_vmec, B_sub_zeta
-    real(rp), dimension(:,:), allocatable :: B_sup_theta_vmec, B_sup_zeta
-    real(rp), dimension(:), allocatable :: d_B_d_s_mnc, d_B_d_s_mns
-    real(rp), dimension(:), allocatable :: d_R_d_s_mnc, d_R_d_s_mns
-    real(rp), dimension(:), allocatable :: d_Z_d_s_mnc, d_Z_d_s_mns
-    real(rp), dimension(:), allocatable :: d_Lambda_d_s_mnc, d_Lambda_d_s_mns
-    real(rp), dimension(:,:), allocatable :: grad_s_X, grad_s_Y, grad_s_Z
-    real(rp), dimension(:,:), allocatable :: grad_theta_vmec_X, grad_theta_vmec_Y, grad_theta_vmec_Z
-    real(rp), dimension(:,:), allocatable :: grad_zeta_X, grad_zeta_Y, grad_zeta_Z
-    real(rp), dimension(:,:), allocatable :: grad_psi_X, grad_psi_Y, grad_psi_Z
-    real(rp), dimension(:,:), allocatable :: grad_alpha_X, grad_alpha_Y, grad_alpha_Z
-    real(rp), dimension(:,:), allocatable :: B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate
-    real(rp), dimension(:,:), allocatable :: B_cross_grad_s_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha_alternate
-    real(rp), dimension(:,:), allocatable :: grad_B_X, grad_B_Y, grad_B_Z
-    real(rp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
+    real(dp), dimension(:,:), allocatable :: B, sqrt_g, R, Z, B_dot_grad_theta_pest_over_B_dot_grad_zeta, temp2D
+    real(dp), dimension(:,:), allocatable :: d_B_d_theta_vmec, d_B_d_zeta, d_B_d_s
+    real(dp), dimension(:,:), allocatable :: d_R_d_theta_vmec, d_R_d_zeta, d_R_d_s
+    real(dp), dimension(:,:), allocatable :: d_Z_d_theta_vmec, d_Z_d_zeta, d_Z_d_s
+    real(dp), dimension(:,:), allocatable :: d_X_d_theta_vmec, d_X_d_zeta, d_X_d_s
+    real(dp), dimension(:,:), allocatable :: d_Y_d_theta_vmec, d_Y_d_zeta, d_Y_d_s
+    real(dp), dimension(:,:), allocatable :: d_Lambda_d_theta_vmec, d_Lambda_d_zeta, d_Lambda_d_s
+    real(dp), dimension(:,:), allocatable :: B_sub_s, B_sub_theta_vmec, B_sub_zeta
+    real(dp), dimension(:,:), allocatable :: B_sup_theta_vmec, B_sup_zeta
+    real(dp), dimension(:), allocatable :: d_B_d_s_mnc, d_B_d_s_mns
+    real(dp), dimension(:), allocatable :: d_R_d_s_mnc, d_R_d_s_mns
+    real(dp), dimension(:), allocatable :: d_Z_d_s_mnc, d_Z_d_s_mns
+    real(dp), dimension(:), allocatable :: d_Lambda_d_s_mnc, d_Lambda_d_s_mns
+    real(dp), dimension(:,:), allocatable :: grad_s_X, grad_s_Y, grad_s_Z
+    real(dp), dimension(:,:), allocatable :: grad_theta_vmec_X, grad_theta_vmec_Y, grad_theta_vmec_Z
+    real(dp), dimension(:,:), allocatable :: grad_zeta_X, grad_zeta_Y, grad_zeta_Z
+    real(dp), dimension(:,:), allocatable :: grad_theta_X, grad_theta_Y, grad_theta_Z
+    real(dp), dimension(:,:), allocatable :: grad_psi_X, grad_psi_Y, grad_psi_Z
+    real(dp), dimension(:,:), allocatable :: grad_alpha_X, grad_alpha_Y, grad_alpha_Z
+    real(dp), dimension(:,:), allocatable :: B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate
+    real(dp), dimension(:,:), allocatable :: B_cross_grad_s_dot_grad_alpha, B_cross_grad_s_dot_grad_alpha_alternate
+    real(dp), dimension(:,:), allocatable :: grad_B_X, grad_B_Y, grad_B_Z
+    real(dp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
+    logical :: verbose, test
+    verbose = .false.
+    test = .false.
     !*********************************************************************
     ! Read in everything from the vmec wout file using libstell.
     !*********************************************************************
@@ -463,41 +372,28 @@ contains
     !if (ierr .ne. 0) stop 'error reading wout file'
     !if (verbose) print *,"  Successfully read VMEC data from ",trim(vmec_filename)
 !
-    if (verbose) print *,"  Number of field periods (nfp):",nfp
+    if (verbose) print *,"  Number of field periods (nfp):",pest%vmec%nfp
 
     !*********************************************************************
     ! Do some validation.
     !*********************************************************************
 
-    if (nalpha<1) then
-       print *,"Error! nalpha must be >= 1. Instead it is",nalpha
+    if (pest%nx2<1) then
+       print *,"Error! pest%nx2 must be >= 1. Instead it is",pest%nx2
        stop
     end if
 
-    if (nzgrid<1) then
-       print *,"Error! nzgrid must be >= 1. Instead it is",nzgrid
+    if (pest%nx3<1) then
+       print *,"Error! pest%nx3 must be >= 1. Instead it is",pest%nx3
        stop
     end if
 
-!    ! There is a bug in libstell read_wout_file for ASCII-format wout files, in which the xm_nyq and xn_nyq arrays are sometimes
-!    ! not populated. The next few lines here provide a workaround:
-!    if (maxval(abs(xm_nyq)) < 1 .and. maxval(abs(xn_nyq)) < 1) then
-!       if (mnmax_nyq == mnmax) then
-!          if (verbose) print *,"xm_nyq and xn_nyq arrays are not populated in the wout file. Using xm and xn instead."
-!          xm_nyq = xm
-!          xn_nyq = xn
-!       else
-!          print *,"Error! xm_nyq and xn_nyq arrays are not populated in the wout file, and mnmax_nyq != mnmax."
-!          stop
-!       end if
-!    end if
-
-
+    ns = pest%vmec%ns
     !*********************************************************************
     ! Set up the coordinate grids.
     !*********************************************************************
 
-    alpha = [( ((j-1)*2*pi) / nalpha, j=1, nalpha )]
+    pest%x2 = [( (j*2*pi) / pest%nx2, j=pest%ix21, pest%ix22 )]
 
 !!$    if (number_of_field_periods_to_include > nfp) then
 !!$       print *,"Error! number_of_field_periods_to_include > nfp"
@@ -507,26 +403,32 @@ contains
 !!$    end if
     number_of_field_periods_to_include_final = number_of_field_periods_to_include
     if (number_of_field_periods_to_include <= 0) then
-       number_of_field_periods_to_include_final = nfp
-       if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",nfp
+       number_of_field_periods_to_include_final = pest%vmec%nfp
+       if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",pest%vmec%nfp
     end if
 
-    zeta = [( zeta_center + (pi*j*number_of_field_periods_to_include_final)/(nfp*nzgrid), j=-nzgrid, nzgrid )]
+    if (trim(pest%x3_coord) == 'zeta') then
+      pest%x3 = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+    end if
+
+    if (trim(pest%x3_coord) == 'theta') then
+      pest%x3 = [( pest%safety_factor_q*(zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
+    end if
 
     !*********************************************************************
-    ! We know theta_pest = alpha + iota * zeta, but we need to determine
+    ! We know theta_pest = alpha + pest%iota * pest%x3, but we need to determine
     ! theta_vmec = theta_pest - Lambda.
     !*********************************************************************
 
-    allocate(theta_vmec(nalpha, -nzgrid:nzgrid))
+    allocate(theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
     if (verbose) print *,"  Beginning root solves to determine theta_vmec."
     root_solve_absolute_tolerance = 1.0d-10
     root_solve_relative_tolerance = 1.0d-10
-    do iz = -nzgrid, nzgrid
-       zeta0 = zeta(iz)
-       do ia = 1,nalpha
-          theta_pest_target = alpha(ia) + iota * zeta0
+    do iz = pest%ix31,pest%ix32
+       zeta0 = pest%x3(iz)
+       do ia = pest%ix21,pest%ix22
+          theta_pest_target = pest%x2(ia) + pest%iota * zeta0
           ! Guess that theta_vmec will be within 0.3 radians of theta_pest:
           theta_vmec_min = theta_pest_target - 0.3
           theta_vmec_max = theta_pest_target + 0.3
@@ -545,7 +447,7 @@ contains
     end do
     if (verbose) then
        print *,"  Done with root solves. Here comes theta_vmec:"
-       do j = 1, nalpha
+       do j = pest%ix21,pest%ix22
           print *,theta_vmec(j,:)
        end do
     end if
@@ -554,40 +456,41 @@ contains
     ! Initialize geometry arrays
     !*********************************************************************
 
-    bmag = 0
-    gradpar = 0
-    gds2 = 0
-    gds21 = 0
-    gds22 = 0
-    gbdrift = 0
-    gbdrift0 = 0
-    cvdrift = 0
-    cvdrift0 = 0
-    jac_gist_inv = 0
-    d_B_d_par = 0
+!    bmag = 0
+!    gradpar = 0
+!    gds2 = 0
+!    gds21 = 0
+!    gds22 = 0
+!    gbdrift = 0
+!    gbdrift0 = 0
+!    cvdrift = 0
+!    cvdrift0 = 0
+!    jac_gist_inv = 0
+!    d_B_d_par = 0
 
 
-    allocate(B(nalpha,-nzgrid:nzgrid))
-    allocate(temp2D(nalpha,-nzgrid:nzgrid))
-    allocate(sqrt_g(nalpha,-nzgrid:nzgrid))
-    allocate(R(nalpha,-nzgrid:nzgrid))
-    allocate(d_B_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_B_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_B_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(d_R_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_R_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_R_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(d_Z_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_Z_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_Z_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(d_Lambda_d_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(d_Lambda_d_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(d_Lambda_d_s(nalpha,-nzgrid:nzgrid))
-    allocate(B_sub_s(nalpha,-nzgrid:nzgrid))
-    allocate(B_sub_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(B_sub_zeta(nalpha,-nzgrid:nzgrid))
-    allocate(B_sup_theta_vmec(nalpha,-nzgrid:nzgrid))
-    allocate(B_sup_zeta(nalpha,-nzgrid:nzgrid))
+    allocate(B(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(temp2D(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(sqrt_g(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(R(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_B_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_B_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_B_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_R_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_R_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_R_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Z_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Z_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Z_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sub_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sub_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sub_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sup_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sup_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
     allocate(d_B_d_s_mnc(ns))
     allocate(d_B_d_s_mns(ns))
@@ -598,43 +501,47 @@ contains
     allocate(d_Lambda_d_s_mnc(ns))
     allocate(d_Lambda_d_s_mns(ns))
 
-    allocate(d_X_d_s(nalpha, -nzgrid:nzgrid))
-    allocate(d_X_d_theta_vmec(nalpha, -nzgrid:nzgrid))
-    allocate(d_X_d_zeta(nalpha, -nzgrid:nzgrid))
-    allocate(d_Y_d_s(nalpha, -nzgrid:nzgrid))
-    allocate(d_Y_d_theta_vmec(nalpha, -nzgrid:nzgrid))
-    allocate(d_Y_d_zeta(nalpha, -nzgrid:nzgrid))
+    allocate(d_X_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_X_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_X_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Y_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Y_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Y_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
-    allocate(grad_s_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_s_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_s_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_theta_vmec_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_theta_vmec_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_theta_vmec_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_zeta_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_zeta_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_zeta_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_psi_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_psi_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_psi_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_alpha_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_alpha_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_alpha_Z(nalpha, -nzgrid:nzgrid))
+    allocate(grad_s_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_s_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_s_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_zeta_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_zeta_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_zeta_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_psi_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_psi_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_psi_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_alpha_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_alpha_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_alpha_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
     
-    allocate(B_X(nalpha, -nzgrid:nzgrid))
-    allocate(B_Y(nalpha, -nzgrid:nzgrid))
-    allocate(B_Z(nalpha, -nzgrid:nzgrid))
-    allocate(grad_B_X(nalpha, -nzgrid:nzgrid))
-    allocate(grad_B_Y(nalpha, -nzgrid:nzgrid))
-    allocate(grad_B_Z(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_B_dot_grad_alpha(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_B_dot_grad_alpha_alternate(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_s_dot_grad_alpha(nalpha, -nzgrid:nzgrid))
-    allocate(B_cross_grad_s_dot_grad_alpha_alternate(nalpha, -nzgrid:nzgrid))
+    allocate(B_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_B_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_B_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_B_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_B_dot_grad_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_B_dot_grad_alpha_alternate(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_s_dot_grad_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_s_dot_grad_alpha_alternate(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
     B = 0
     sqrt_g = 0
     R = 0
+    Z = 0
     d_B_d_theta_vmec = 0
     d_B_d_zeta = 0
     d_B_d_s = 0
@@ -658,23 +565,23 @@ contains
     ! all the geometric quantities on the grid points.
     !*********************************************************************
     
-    do imn_nyq = 1, mnmax_nyq ! All the quantities we need except R, Z, and Lambda use the _nyq mode numbers.
-       m = xm_nyq(imn_nyq)
-       n = xn_nyq(imn_nyq)/nfp
+    do imn_nyq = 1, pest%vmec%mnmax_nyq ! All the quantities we need except R, Z, and Lambda use the _nyq mode numbers.
+       m = pest%vmec%xm_nyq(imn_nyq)
+       n = pest%vmec%xn_nyq(imn_nyq)/pest%vmec%nfp
 
-       if (abs(m) >= mpol .or. abs(n) > ntor) then
+       if (abs(m) >= pest%vmec%mpol .or. abs(n) > pest%vmec%ntor) then
           non_Nyquist_mode_available = .false.
        else
           non_Nyquist_mode_available = .true.
           ! Find the imn in the non-Nyquist arrays that corresponds to the same m and n.
           found_imn = .false.
-          do imn = 1,mnmax
-             if (xm(imn)==m .and. xn(imn)==n*nfp) then
+          do imn = 1,pest%vmec%mnmax
+             if (pest%vmec%xm(imn)==m .and. pest%vmec%xn(imn)==n*pest%vmec%nfp) then
                 found_imn = .true.
                 exit
              end if
           end do
-          if ((xm(imn) .ne. m) .or. (xn(imn) .ne. n*nfp)) stop "Something went wrong!"
+          if ((pest%vmec%xm(imn) .ne. m) .or. (pest%vmec%xn(imn) .ne. n*pest%vmec%nfp)) stop "Something went wrong!"
           if (.not. found_imn) stop "Error! imn could not be found matching the given imn_nyq."
        end if
 
@@ -692,22 +599,22 @@ contains
        ! B and Lambda are on the half mesh, so their radial derivatives are on the full mesh.
        ! R and Z are on the full mesh, so their radial derivatives are on the half mesh.
 
-       d_B_d_s_mnc(2:ns-1) = (bmnc(imn_nyq,3:ns) - bmnc(imn_nyq,2:ns-1)) / ds
+       d_B_d_s_mnc(2:ns-1) = (pest%vmec%bmnc(imn_nyq,3:ns) - pest%vmec%bmnc(imn_nyq,2:ns-1)) / ds
        ! Simplistic extrapolation at the endpoints:
        d_B_d_s_mnc(1) = d_B_d_s_mnc(2)
        d_B_d_s_mnc(ns) = d_B_d_s_mnc(ns-1)
 
        if (non_Nyquist_mode_available) then
           ! R is on the full mesh:
-          d_R_d_s_mnc(2:ns) = (rmnc(imn,2:ns) - rmnc(imn,1:ns-1)) / ds
+          d_R_d_s_mnc(2:ns) = (pest%vmec%rmnc(imn,2:ns) - pest%vmec%rmnc(imn,1:ns-1)) / ds
           d_R_d_s_mnc(1) = 0
 
           ! Z is on the full mesh:
-          d_Z_d_s_mns(2:ns) = (zmns(imn,2:ns) - zmns(imn,1:ns-1)) / ds
+          d_Z_d_s_mns(2:ns) = (pest%vmec%zmns(imn,2:ns) - pest%vmec%zmns(imn,1:ns-1)) / ds
           d_Z_d_s_mns(1) = 0
 
           ! Lambda is on the half mesh:
-          d_Lambda_d_s_mns(2:ns-1) = (lmns(imn,3:ns) - lmns(imn,2:ns-1)) / ds
+          d_Lambda_d_s_mns(2:ns-1) = (pest%vmec%lmns(imn,3:ns) - pest%vmec%lmns(imn,2:ns-1)) / ds
           ! Simplistic extrapolation at the endpoints:
           d_Lambda_d_s_mns(1) = d_Lambda_d_s_mns(2)
           d_Lambda_d_s_mns(ns) = d_Lambda_d_s_mns(ns-1)
@@ -719,49 +626,49 @@ contains
 
        ! End of evaluating radial derivatives.
 
-       do ia = 1,nalpha
-          do iz = -nzgrid, nzgrid
-             angle = m * theta_vmec(ia,iz) - n * nfp * zeta(iz)
+       do iz = pest%ix31,pest%ix32
+          do ia = pest%ix21,pest%ix22
+             angle = m * theta_vmec(ia,iz) - n * pest%vmec%nfp * pest%x3(iz)
              cos_angle = cos(angle)
              sin_angle = sin(angle)
 
              do isurf = 1,2
 
                 ! Handle |B|:
-                temp = bmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                temp = pest%vmec%bmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 B(ia,iz) = B(ia,iz) + temp * cos_angle
                 d_B_d_theta_vmec(ia,iz) = d_B_d_theta_vmec(ia,iz) - m * temp * sin_angle
-                d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) + n * nfp * temp * sin_angle       
+                d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) + n * pest%vmec%nfp * temp * sin_angle       
 
                 ! Handle Jacobian:
-                temp = gmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                temp = pest%vmec%gmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 sqrt_g(ia,iz) = sqrt_g(ia,iz) + temp * cos_angle
 
                 ! Handle B sup theta:
-                temp = bsupumnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                temp = pest%vmec%bsupumnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 B_sup_theta_vmec(ia,iz) = B_sup_theta_vmec(ia,iz) + temp * cos_angle
 
-                ! Handle B sup zeta:
-                temp = bsupvmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                ! Handle B sup pest%x3:
+                temp = pest%vmec%bsupvmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 B_sup_zeta(ia,iz) = B_sup_zeta(ia,iz) + temp * cos_angle
 
                 ! Handle B sub theta:
-                temp = bsubumnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                temp = pest%vmec%bsubumnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 B_sub_theta_vmec(ia,iz) = B_sub_theta_vmec(ia,iz) + temp * cos_angle
 
-                ! Handle B sub zeta:
-                temp = bsubvmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                ! Handle B sub pest%x3:
+                temp = pest%vmec%bsubvmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 B_sub_zeta(ia,iz) = B_sub_zeta(ia,iz) + temp * cos_angle
 
                 ! Handle B sub psi.
                 ! Unlike the other components of B, this one is on the full mesh.
-                temp = bsubsmns(imn_nyq,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
+                temp = pest%vmec%bsubsmns(imn_nyq,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                 temp = temp*scale_factor
                 B_sub_s(ia,iz) = B_sub_s(ia,iz) + temp * sin_angle
 
@@ -775,25 +682,25 @@ contains
                 if (non_Nyquist_mode_available) then
 
                    ! Handle R, which is on the full mesh
-                   temp = rmnc(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
+                   temp = pest%vmec%rmnc(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                    temp = temp*scale_factor
                    R(ia,iz) = R(ia,iz) + temp * cos_angle
                    d_R_d_theta_vmec(ia,iz) = d_R_d_theta_vmec(ia,iz) - temp * m * sin_angle
-                   d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  + temp * n * nfp * sin_angle
+                   d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  + temp * n * pest%vmec%nfp * sin_angle
 
                    ! Handle Z, which is on the full mesh
-                   temp = zmns(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
+                   temp = pest%vmec%zmns(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                    temp = temp*scale_factor
-                   !Z(ia,iz) = Z(ia,iz) + temp * sin_angle  ! We don't actually need Z itself, only derivatives of Z.
+                   Z(ia,iz) = Z(ia,iz) + temp * sin_angle  ! We don't actually need Z itself, only derivatives of Z.
                    d_Z_d_theta_vmec(ia,iz) = d_Z_d_theta_vmec(ia,iz) + temp * m * cos_angle
-                   d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  - temp * n * nfp * cos_angle
+                   d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  - temp * n * pest%vmec%nfp * cos_angle
 
                    ! Handle Lambda:
-                   temp = lmns(imn,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                   temp = pest%vmec%lmns(imn,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    ! We don't need Lambda itself, just its derivatives.
                    d_Lambda_d_theta_vmec(ia,iz) = d_Lambda_d_theta_vmec(ia,iz) + m * temp * cos_angle
-                   d_Lambda_d_zeta(ia,iz) = d_Lambda_d_zeta(ia,iz) - n * nfp * temp * cos_angle       
+                   d_Lambda_d_zeta(ia,iz) = d_Lambda_d_zeta(ia,iz) - n * pest%vmec%nfp * temp * cos_angle       
 
                    ! Handle d R / d s
                    ! Since R is on the full mesh, its radial derivative is on the half mesh.
@@ -814,37 +721,37 @@ contains
                    d_Lambda_d_s(ia,iz) = d_Lambda_d_s(ia,iz) + temp * sin_angle
 
                 end if
-             end do
-          end do
-       end do
+             end do ! End surface loop
+          end do ! End x3 loop
+       end do ! End x2 loop
 
        ! -----------------------------------------------------
        ! Now consider the stellarator-asymmetric terms.
        ! -----------------------------------------------------
 
-       if (lasym) then
+       if (pest%vmec%lasym) then
 
           ! Evaluate the radial derivatives we will need:
 
           ! B and Lambda are on the half mesh, so their radial derivatives are on the full mesh.
           ! R and Z are on the full mesh, so their radial derivatives are on the half mesh.
 
-          d_B_d_s_mns(2:ns-1) = (bmns(imn_nyq,3:ns) - bmns(imn_nyq,2:ns-1)) / ds
+          d_B_d_s_mns(2:ns-1) = (pest%vmec%bmns(imn_nyq,3:ns) - pest%vmec%bmns(imn_nyq,2:ns-1)) / ds
           ! Simplistic extrapolation at the endpoints:
           d_B_d_s_mns(1) = d_B_d_s_mns(2)
           d_B_d_s_mns(ns) = d_B_d_s_mns(ns-1)
 
           if (non_Nyquist_mode_available) then
              ! R is on the full mesh:
-             d_R_d_s_mns(2:ns) = (rmns(imn,2:ns) - rmns(imn,1:ns-1)) / ds
+             d_R_d_s_mns(2:ns) = (pest%vmec%rmns(imn,2:ns) - pest%vmec%rmns(imn,1:ns-1)) / ds
              d_R_d_s_mns(1) = 0
 
              ! Z is on the full mesh:
-             d_Z_d_s_mnc(2:ns) = (zmnc(imn,2:ns) - zmnc(imn,1:ns-1)) / ds
+             d_Z_d_s_mnc(2:ns) = (pest%vmec%zmnc(imn,2:ns) - pest%vmec%zmnc(imn,1:ns-1)) / ds
              d_Z_d_s_mnc(1) = 0
 
              ! Lambda is on the half mesh:
-             d_Lambda_d_s_mnc(2:ns-1) = (lmnc(imn_nyq,3:ns) - lmnc(imn_nyq,2:ns-1)) / ds
+             d_Lambda_d_s_mnc(2:ns-1) = (pest%vmec%lmnc(imn_nyq,3:ns) - pest%vmec%lmnc(imn_nyq,2:ns-1)) / ds
              ! Simplistic extrapolation at the endpoints:
              d_Lambda_d_s_mnc(1) = d_Lambda_d_s_mnc(2)
              d_Lambda_d_s_mnc(ns) = d_Lambda_d_s_mnc(ns-1)
@@ -856,49 +763,49 @@ contains
 
           ! End of evaluating radial derivatives.
 
-          do ia = 1,nalpha
-             do iz = -nzgrid, nzgrid
-                angle = m * theta_vmec(ia,iz) - n * nfp * zeta(iz)
+          do iz = pest%ix31,pest%ix32
+             do ia = pest%ix21,pest%ix22
+                angle = m * theta_vmec(ia,iz) - n * pest%vmec%nfp * pest%x3(iz)
                 cos_angle = cos(angle)
                 sin_angle = sin(angle)
 
                 do isurf = 1,2
 
                    ! Handle |B|:
-                   temp = bmns(imn_nyq,vmec_radial_index_half(1)) * vmec_radial_weight_half(1)
+                   temp = pest%vmec%bmns(imn_nyq,vmec_radial_index_half(1)) * vmec_radial_weight_half(1)
                    temp = temp * scale_factor
                    B(ia,iz) = B(ia,iz) + temp * sin_angle
                    d_B_d_theta_vmec(ia,iz) = d_B_d_theta_vmec(ia,iz) + m * temp * cos_angle
-                   d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) - n * nfp * temp * cos_angle
+                   d_B_d_zeta(ia,iz) = d_B_d_zeta(ia,iz) - n * pest%vmec%nfp * temp * cos_angle
 
                    ! Handle Jacobian:
-                   temp = gmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                   temp = pest%vmec%gmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    sqrt_g(ia,iz) = sqrt_g(ia,iz) + temp * sin_angle
 
                    ! Handle B sup theta:
-                   temp = bsupumns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
-                   temp = temp*scale_factor	
+                   temp = pest%vmec%bsupumns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                   temp = temp*scale_factor
                    B_sup_theta_vmec(ia,iz) = B_sup_theta_vmec(ia,iz) + temp * sin_angle
 
-                   ! Handle B sup zeta:
-                   temp = bsupvmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                   ! Handle B sup pest%x3:
+                   temp = pest%vmec%bsupvmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    B_sup_zeta(ia,iz) = B_sup_zeta(ia,iz) + temp * sin_angle
 
                    ! Handle B sub theta:
-                   temp = bsubumns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                   temp = pest%vmec%bsubumns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    B_sub_theta_vmec(ia,iz) = B_sub_theta_vmec(ia,iz) + temp * sin_angle
 
-                   ! Handle B sub zeta:
-                   temp = bsubvmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                   ! Handle B sub pest%x3:
+                   temp = pest%vmec%bsubvmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    B_sub_zeta(ia,iz) = B_sub_zeta(ia,iz) + temp * sin_angle
 
                    ! Handle B sub psi.
                    ! Unlike the other components of B, this one is on the full mesh.
-                   temp = bsubsmnc(imn_nyq,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
+                   temp = pest%vmec%bsubsmnc(imn_nyq,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                    temp = temp*scale_factor
                    B_sub_s(ia,iz) = B_sub_s(ia,iz) + temp * cos_angle
 
@@ -912,25 +819,25 @@ contains
                    if (non_Nyquist_mode_available) then
 
                       ! Handle R, which is on the full mesh
-                      temp = rmns(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
+                      temp = pest%vmec%rmns(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                       temp = temp*scale_factor
                       R(ia,iz) = R(ia,iz) + temp * sin_angle
                       d_R_d_theta_vmec(ia,iz) = d_R_d_theta_vmec(ia,iz) + temp * m * cos_angle
-                      d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  - temp * n * nfp * cos_angle
+                      d_R_d_zeta(ia,iz)  = d_R_d_zeta(ia,iz)  - temp * n * pest%vmec%nfp * cos_angle
 
                       ! Handle Z, which is on the full mesh
-                      temp = zmnc(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
+                      temp = pest%vmec%zmnc(imn,vmec_radial_index_full(isurf)) * vmec_radial_weight_full(isurf)
                       temp = temp*scale_factor
-                      ! Z(ia,iz) = Z(ia,iz) + temp * cos_angle   ! We don't actually need Z itself, only derivatives of Z.
+                      Z(ia,iz) = Z(ia,iz) + temp * cos_angle   ! We don't actually need Z itself, only derivatives of Z.
                       d_Z_d_theta_vmec(ia,iz) = d_Z_d_theta_vmec(ia,iz) - temp * m * sin_angle
-                      d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  + temp * n * nfp * sin_angle
+                      d_Z_d_zeta(ia,iz)  = d_Z_d_zeta(ia,iz)  + temp * n * pest%vmec%nfp * sin_angle
 
                       ! Handle Lambda, which is on the half mesh
-                      temp = lmnc(imn,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+                      temp = pest%vmec%lmnc(imn,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                       temp = temp*scale_factor
                       ! We don't actually need Lambda itself, only derivatives of Lambda.
                       d_Lambda_d_theta_vmec(ia,iz) = d_Lambda_d_theta_vmec(ia,iz) - temp * m * sin_angle
-                      d_Lambda_d_zeta(ia,iz)  = d_Lambda_d_zeta(ia,iz)  + temp * n * nfp * sin_angle
+                      d_Lambda_d_zeta(ia,iz)  = d_Lambda_d_zeta(ia,iz)  + temp * n * pest%vmec%nfp * sin_angle
 
                       ! Handle d R / d s.
                       ! Since R is on the full mesh, its radial derivative is on the half mesh.
@@ -950,26 +857,26 @@ contains
                       temp = temp*scale_factor
                       d_Lambda_d_s(ia,iz) = d_Lambda_d_s(ia,iz) + temp * cos_angle
                    end if
-                end do
-             end do
-          end do
-       end if
-    end do
+                end do ! End surface loop
+             end do ! End x3 loop
+          end do ! End x2 loop
+       end if ! End lasym
+    end do ! End imn_nyq loop 
 
     !*********************************************************************
     ! Sanity check: If the conversion to theta_pest has been done 
     ! correctly, we should find that 
-    ! (B dot grad theta_pest) / (B dot grad zeta) = iota.
+    ! (B dot grad theta_pest) / (B dot grad pest%x3) = pest%iota.
     ! Let's verify this:
     !*********************************************************************
     
     if (test) then
-      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(nalpha, -nzgrid:nzgrid))
-      ! Compute (B dot grad theta_pest) / (B dot grad zeta):
+      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+      ! Compute (B dot grad theta_pest) / (B dot grad pest%x3):
       B_dot_grad_theta_pest_over_B_dot_grad_zeta = &
         & (B_sup_theta_vmec * (1 + d_Lambda_d_theta_vmec) + B_sup_zeta * d_Lambda_d_zeta) / B_sup_zeta 
-      temp2D = iota
-      call test_arrays(B_dot_grad_theta_pest_over_B_dot_grad_zeta, temp2D, .false., 0.01, 'iota')
+      temp2D = pest%iota
+      call test_arrays(B_dot_grad_theta_pest_over_B_dot_grad_zeta, temp2D, .false., 0.01, 'pest%iota')
       deallocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta)
     end if
 
@@ -978,25 +885,25 @@ contains
     ! components of the gradient basis vectors using the dual relations:
     !*********************************************************************
 
-    sqrt_s = sqrt(normalized_toroidal_flux_used)
+    sqrt_s = sqrt(pest%x1(pest%ix11))
 
-    do iz = -nzgrid, nzgrid
-       cos_angle = cos(zeta(iz))
-       sin_angle = sin(zeta(iz))
+    do iz = pest%ix31,pest%ix32
+       cos_angle = cos(pest%x3(iz))
+       sin_angle = sin(pest%x3(iz))
 
-       ! X = R * cos(zeta)
+       ! X = R * cos(pest%x3)
        d_X_d_theta_vmec(:,iz) = d_R_d_theta_vmec(:,iz) * cos_angle
        d_X_d_zeta(:,iz) = d_R_d_zeta(:,iz) * cos_angle - R(:,iz) * sin_angle
        d_X_d_s(:,iz) = d_R_d_s(:,iz) * cos_angle
 
-       ! Y = R * sin(zeta)
+       ! Y = R * sin(pest%x3)
        d_Y_d_theta_vmec(:,iz) = d_R_d_theta_vmec(:,iz) * sin_angle
        d_Y_d_zeta(:,iz) = d_R_d_zeta(:,iz) * sin_angle + R(:,iz) * cos_angle
        d_Y_d_s(:,iz) = d_R_d_s(:,iz) * sin_angle
 
     end do
 
-    ! Use the dual relations to get the Cartesian components of grad s, grad theta_vmec, and grad zeta:
+    ! Use the dual relations to get the Cartesian components of grad s, grad theta_vmec, and grad pest%x3:
     grad_s_X = (d_Y_d_theta_vmec * d_Z_d_zeta - d_Z_d_theta_vmec * d_Y_d_zeta) / sqrt_g
     grad_s_Y = (d_Z_d_theta_vmec * d_X_d_zeta - d_X_d_theta_vmec * d_Z_d_zeta) / sqrt_g
     grad_s_Z = (d_X_d_theta_vmec * d_Y_d_zeta - d_Y_d_theta_vmec * d_X_d_zeta) / sqrt_g
@@ -1011,16 +918,16 @@ contains
     ! End of the dual relations.
 
     if (test) then
-      ! Sanity check: grad_zeta_X should be -sin(zeta) / R:
-      do iz = -nzgrid,nzgrid
-         temp2D(:,iz) = -sin(zeta(iz)) / R(:,iz)
+      ! Sanity check: grad_zeta_X should be -sin(pest%x3) / R:
+      do iz = pest%ix31,pest%ix32
+         temp2D(:,iz) = -sin(pest%x3(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_X, temp2D, .false., 1.0e-2, 'grad_zeta_X')
       grad_zeta_X = temp2D ! We might as well use the exact value, which is in temp2D.
 
-      ! Sanity check: grad_zeta_Y should be cos(zeta) / R:
-      do iz = -nzgrid,nzgrid
-         temp2D(:,iz) = cos(zeta(iz)) / R(:,iz)
+      ! Sanity check: grad_zeta_Y should be cos(pest%x3) / R:
+      do iz = pest%ix31,pest%ix32
+         temp2D(:,iz) = cos(pest%x3(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_Y, temp2D, .false., 1.0e-2, 'grad_zeta_Y')
       grad_zeta_Y = temp2D ! We might as well use the exact value, which is in temp2D.
@@ -1038,23 +945,27 @@ contains
     grad_psi_Y = grad_s_Y * edge_toroidal_flux_over_2pi
     grad_psi_Z = grad_s_Z * edge_toroidal_flux_over_2pi
 
-    ! Form grad alpha = grad (theta_vmec + Lambda - iota * zeta)
-    do iz = -nzgrid,nzgrid
-       grad_alpha_X(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_X(:,iz)
-       grad_alpha_Y(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_Y(:,iz)
-       grad_alpha_Z(:,iz) = (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) * grad_s_Z(:,iz)
+    ! Form grad alpha = grad (theta_vmec + Lambda - pest%iota * pest%x3)
+    do iz = pest%ix31,pest%ix32
+       grad_alpha_X(:,iz) = (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) * grad_s_X(:,iz)
+       grad_alpha_Y(:,iz) = (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) * grad_s_Y(:,iz)
+       grad_alpha_Z(:,iz) = (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) * grad_s_Z(:,iz)
     end do
-    grad_alpha_X = grad_alpha_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + (-iota + d_Lambda_d_zeta) * grad_zeta_X
-    grad_alpha_Y = grad_alpha_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + (-iota + d_Lambda_d_zeta) * grad_zeta_Y
-    grad_alpha_Z = grad_alpha_Z + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Z + (-iota + d_Lambda_d_zeta) * grad_zeta_Z
+    grad_alpha_X = grad_alpha_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_X
+    grad_alpha_Y = grad_alpha_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_Y
+    grad_alpha_Z = grad_alpha_Z + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Z + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_Z
+
+    grad_theta_X = d_Lambda_d_s * grad_s_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + d_Lambda_d_zeta * grad_zeta_X 
+    grad_theta_Y = d_Lambda_d_s * grad_s_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + d_Lambda_d_zeta * grad_zeta_Y 
+    grad_theta_Z = d_Lambda_d_s * grad_s_Z + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Z + d_Lambda_d_zeta * grad_zeta_Z 
 
     grad_B_X = d_B_d_s * grad_s_X + d_B_d_theta_vmec * grad_theta_vmec_X + d_B_d_zeta * grad_zeta_X
     grad_B_Y = d_B_d_s * grad_s_Y + d_B_d_theta_vmec * grad_theta_vmec_Y + d_B_d_zeta * grad_zeta_Y
     grad_B_Z = d_B_d_s * grad_s_Z + d_B_d_theta_vmec * grad_theta_vmec_Z + d_B_d_zeta * grad_zeta_Z
 
-    B_X = edge_toroidal_flux_over_2pi * ((1 + d_Lambda_d_theta_vmec) * d_X_d_zeta + (iota - d_Lambda_d_zeta) * d_X_d_theta_vmec) / sqrt_g
-    B_Y = edge_toroidal_flux_over_2pi * ((1 + d_Lambda_d_theta_vmec) * d_Y_d_zeta + (iota - d_Lambda_d_zeta) * d_Y_d_theta_vmec) / sqrt_g
-    B_Z = edge_toroidal_flux_over_2pi * ((1 + d_Lambda_d_theta_vmec) * d_Z_d_zeta + (iota - d_Lambda_d_zeta) * d_Z_d_theta_vmec) / sqrt_g
+    B_X = edge_toroidal_flux_over_2pi * ((1 + d_Lambda_d_theta_vmec) * d_X_d_zeta + (pest%iota - d_Lambda_d_zeta) * d_X_d_theta_vmec) / sqrt_g
+    B_Y = edge_toroidal_flux_over_2pi * ((1 + d_Lambda_d_theta_vmec) * d_Y_d_zeta + (pest%iota - d_Lambda_d_zeta) * d_Y_d_theta_vmec) / sqrt_g
+    B_Z = edge_toroidal_flux_over_2pi * ((1 + d_Lambda_d_theta_vmec) * d_Z_d_zeta + (pest%iota - d_Lambda_d_zeta) * d_Z_d_theta_vmec) / sqrt_g
 
     if (test) then
     !*********************************************************************
@@ -1081,9 +992,10 @@ contains
       call test_arrays(1/sqrt_g, temp2D, .false., 1.0e-2, '1/sqrt_g')
     end if
 
-    jac_gist_inv = (L_reference**3)/(2*safety_factor_q)*(1 + d_Lambda_d_theta_vmec)/sqrt_g
+    ! Things for GIST
+    !jac_gist_inv = (L_ref**3)/(2*safety_factor_q)*(1 + d_Lambda_d_theta_vmec)/sqrt_g
 
-    d_B_d_par = -safety_factor_q/L_reference *jac_gist_inv / B * d_B_d_zeta 
+    !d_B_d_par = -safety_factor_q/L_ref *jac_gist_inv / B * d_B_d_zeta 
 
         
     if (test) then
@@ -1110,7 +1022,7 @@ contains
     !*********************************************************************
 
     B_cross_grad_s_dot_grad_alpha = (B_sub_zeta * (1 + d_Lambda_d_theta_vmec) &
-         - B_sub_theta_vmec * (d_Lambda_d_zeta - iota) ) / sqrt_g
+         - B_sub_theta_vmec * (d_Lambda_d_zeta - pest%iota) ) / sqrt_g
 
     if (test) then
     B_cross_grad_s_dot_grad_alpha_alternate = 0 &
@@ -1125,13 +1037,13 @@ contains
          .false., 1.0e-2, 'B_cross_grad_s_dot_grad_alpha')
     end if
 
-    do iz = -nzgrid,nzgrid
+    do iz = pest%ix31,pest%ix32
        B_cross_grad_B_dot_grad_alpha(:,iz) = 0 &
-            + (B_sub_s(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_zeta(:,iz) - iota) &
-            + B_sub_theta_vmec(:,iz) * d_B_d_zeta(:,iz) * (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) &
+            + (B_sub_s(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_zeta(:,iz) - pest%iota) &
+            + B_sub_theta_vmec(:,iz) * d_B_d_zeta(:,iz) * (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) &
             + B_sub_zeta(:,iz) * d_B_d_s(:,iz) * (1 + d_Lambda_d_theta_vmec(:,iz)) &
-            - B_sub_zeta(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_s(:,iz) - zeta(iz) * d_iota_d_s) &
-            - B_sub_theta_vmec(:,iz) * d_B_d_s(:,iz) * (d_Lambda_d_zeta(:,iz) - iota) &
+            - B_sub_zeta(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) &
+            - B_sub_theta_vmec(:,iz) * d_B_d_s(:,iz) * (d_Lambda_d_zeta(:,iz) - pest%iota) &
             - B_sub_s(:,iz) * d_B_d_zeta(:,iz) * (1 + d_Lambda_d_theta_vmec(:,iz))) / sqrt_g(:,iz)
     end do
 
@@ -1148,37 +1060,63 @@ contains
          .false., 1.0e-2, 'B_cross_grad_B_dot_grad_alpha')
     end if
 
+    pest%bmag(:,:,pest%ix11) = B 
+    pest%jac(:,:,pest%ix11) = sqrt_g
+    pest%g11(:,:,pest%ix11) = 4.0/((pest%B_ref**2)*(pest%L_ref**4))*(grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z)
+    pest%g12(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z)
+    pest%g22(:,:,pest%ix11) = grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z
+
+    if (trim(pest%x3_coord) == 'zeta') then
+      pest%g13(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_zeta_X + grad_psi_Y * grad_zeta_Y + grad_psi_Z * grad_zeta_Z)
+      pest%g23(:,:,pest%ix11) = grad_alpha_X * grad_zeta_X + grad_alpha_Y * grad_zeta_Y + grad_alpha_Z * grad_zeta_Z
+      pest%g33(:,:,pest%ix11) = grad_zeta_X * grad_zeta_X + grad_zeta_Y * grad_zeta_Y + grad_zeta_Z * grad_zeta_Z
+    end if
+
+    if (trim(pest%x3_coord) == 'theta') then
+      pest%g13(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_theta_X + grad_psi_Y * grad_theta_Y + grad_psi_Z * grad_theta_Z)
+      pest%g23(:,:,pest%ix11) = grad_alpha_X * grad_theta_X + grad_alpha_Y * grad_theta_Y + grad_alpha_Z * grad_theta_Z
+      pest%g33(:,:,pest%ix11) = grad_theta_X * grad_theta_X + grad_theta_Y * grad_theta_Y + grad_theta_Z * grad_theta_Z
+    end if
+
+    pest%d_Lambda_d_theta_vmec(:,:,pest%ix11) = d_Lambda_d_theta_vmec
     !*********************************************************************
     ! Finally, assemble the quantities needed for gs2.
     !*********************************************************************
 
     ! See the latex note gs2_full_surface_stellarator_geometry in the "doc" directory for a derivation of the formulae that follow.
 
-    bmag = B / B_reference
+!    bmag = B / pest%B_ref
+!
+!    gradpar = pest%L_ref * B_sup_zeta / B
+!
+!    gds2 = (grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z) &
+!         * pest%L_ref * pest%L_ref * pest%x1(pest%ix11)
+!
+!    gds21 = (grad_alpha_X * grad_psi_X + grad_alpha_Y * grad_psi_Y + grad_alpha_Z * grad_psi_Z) &
+!         * sign_toroidal_flux * shat / pest%B_ref
+!
+!    gds22 = (grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z) &
+!         * shat * shat / (pest%L_ref * pest%L_ref * pest%B_ref * pest%B_ref * pest%x1(pest%ix11))
+!
+!    gbdrift = sign_toroidal_flux * 2 * pest%B_ref * pest%L_ref * pest%L_ref * sqrt_s * B_cross_grad_B_dot_grad_alpha &
+!         / (B * B * B)
+!
+!    gbdrift0 = abs(edge_toroidal_flux_over_2pi) &
+!      & * (B_sub_theta_vmec * d_B_d_zeta - B_sub_zeta * d_B_d_theta_vmec) / sqrt_g &
+!      & * 2 * shat / (B * B * B * sqrt_s)
+!    ! In the above 2-line expression for gbdrift0, the first line is \vec{B} \times \nabla B \cdot \nabla \psi.
+!
+!    cvdrift = gbdrift + sign_toroidal_flux * 2 * pest%B_ref * pest%L_ref * pest%L_ref * sqrt_s * mu_0 * d_pressure_d_s &
+!         * B_cross_grad_s_dot_grad_alpha / (B * B * B * B)
+!
+!    cvdrift0 = gbdrift0
 
-    gradpar = L_reference * B_sup_zeta / B
+    !*********************************************************************
+    ! Copy the surface quantities
+    !*********************************************************************
 
-    gds2 = (grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z) &
-         * L_reference * L_reference * normalized_toroidal_flux_used
-
-    gds21 = (grad_alpha_X * grad_psi_X + grad_alpha_Y * grad_psi_Y + grad_alpha_Z * grad_psi_Z) &
-         * sign_toroidal_flux * shat / B_reference
-
-    gds22 = (grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z) &
-         * shat * shat / (L_reference * L_reference * B_reference * B_reference * normalized_toroidal_flux_used)
-
-    gbdrift = sign_toroidal_flux * 2 * B_reference * L_reference * L_reference * sqrt_s * B_cross_grad_B_dot_grad_alpha &
-         / (B * B * B)
-
-    gbdrift0 = abs(edge_toroidal_flux_over_2pi) &
-      & * (B_sub_theta_vmec * d_B_d_zeta - B_sub_zeta * d_B_d_theta_vmec) / sqrt_g &
-      & * 2 * shat / (B * B * B * sqrt_s)
-    ! In the above 2-line expression for gbdrift0, the first line is \vec{B} \times \nabla B \cdot \nabla \psi.
-
-    cvdrift = gbdrift + sign_toroidal_flux * 2 * B_reference * L_reference * L_reference * sqrt_s * mu_0 * d_pressure_d_s &
-         * B_cross_grad_s_dot_grad_alpha / (B * B * B * B)
-
-    cvdrift0 = gbdrift0
+    !Rsurf = R
+    !Zsurf = Z
 
     !*********************************************************************
     ! Free all arrays that were allocated.
@@ -1188,6 +1126,7 @@ contains
     deallocate(temp2D)
     deallocate(sqrt_g)
     deallocate(R)
+    deallocate(Z)
     deallocate(d_B_d_theta_vmec)
     deallocate(d_B_d_zeta)
     deallocate(d_B_d_s)
@@ -1231,6 +1170,9 @@ contains
     deallocate(grad_zeta_X)
     deallocate(grad_zeta_Y)
     deallocate(grad_zeta_Z)
+    deallocate(grad_theta_X)
+    deallocate(grad_theta_Y)
+    deallocate(grad_theta_Z)
     deallocate(grad_psi_X)
     deallocate(grad_psi_Y)
     deallocate(grad_psi_Z)
@@ -1251,7 +1193,7 @@ contains
 
     deallocate(theta_vmec)
 
-    if (verbose) print *,"Leaving vmec2sfl."
+    if (verbose) print *,"Leaving compute_pest_sfl."
 
 
   contains
@@ -1265,18 +1207,18 @@ contains
 
       implicit none
 
-      real(rp), dimension(nalpha,-nzgrid:nzgrid) :: array1, array2
-      real(rp) :: tolerance
+      real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: array1, array2
+      real(dp) :: tolerance
       character(len=*) :: name
       logical :: should_be_0
-      real(rp) :: max_value, max_difference
+      real(dp) :: max_value, max_difference
 
       if (should_be_0) then
          max_value = maxval(abs(array1))
          if (verbose) print *,"  maxval(abs(",trim(name),")):",max_value,"(should be << 1.)"
          if (max_value > tolerance) then
             print *,"Error! ",trim(name)," should be 0, but instead it is:"
-            do ia = 1,nalpha
+            do ia = pest%ix21,pest%ix22
                print *,array1(ia,:)
             end do
             stop
@@ -1286,15 +1228,15 @@ contains
          if (verbose) print *,"  Relative difference between two methods for computing ",trim(name),":",max_difference,"(should be << 1.)"
          if (max_difference > tolerance) then
             print *,"Error! Two methods for computing ",trim(name)," disagree. Here comes method 1:"
-            do ia = 1,nalpha
+            do ia = pest%ix21,pest%ix22
                print *,array1(ia,:)
             end do
             print *,"Here comes method 2:"
-            do ia = 1,nalpha
+            do ia = pest%ix21,pest%ix22
                print *,array2(ia,:)
             end do
             print *,"Here comes the difference:"
-            do ia = 1,nalpha
+            do ia = pest%ix21,pest%ix22
                print *,array1(ia,:) - array2(ia,:)
             end do
             stop
@@ -1303,39 +1245,38 @@ contains
 
     end subroutine test_arrays
 
-  end subroutine vmec2sfl
+    real(dp) function fzero_residual(theta_vmec_try) result(residual)
+      ! Note that lmns and lmnc use the non-Nyquist xm, xn, and mnmax.
+      ! Also note that lmns and lmnc are on the HALF grid.
+
+      implicit none
+      
+      real(dp), intent(in) :: theta_vmec_try
+      real(dp) :: angle, sinangle, cosangle
+      integer :: imn, which_surface
+      !type(VMEC_Obj), intent(in) :: vmec
+
+      ! residual = (theta_pest based on theta_vmec_try) - theta_pest_target = theta_vmec_try + Lambda - theta_pest_target
+      residual = theta_vmec_try - theta_pest_target
+
+      do imn = 1, pest%vmec%mnmax
+         angle = pest%vmec%xm(imn)*theta_vmec_try - pest%vmec%xn(imn)*zeta0
+         sinangle = sin(angle)
+         cosangle = cos(angle)
+         do which_surface = 1,2
+            residual = residual + vmec_radial_weight_half(which_surface) * pest%vmec%lmns(imn,vmec_radial_index_half(which_surface)) * sinangle
+            if (pest%vmec%lasym) then
+               residual = residual + vmec_radial_weight_half(which_surface) * pest%vmec%lmnc(imn,vmec_radial_index_half(which_surface)) * cosangle
+            end if
+         end do
+      end do
+
+    end function
+
+
+  end subroutine compute_pest_sfl
 
   ! --------------------------------------------------------------------------
 
 
-
-  function fzero_residual(theta_vmec_try)
-
-    use read_wout_mod, only: xm, xn, mnmax, lmns, lmnc, lasym
-    ! Note that lmns and lmnc use the non-Nyquist xm, xn, and mnmax.
-    ! Also note that lmns and lmnc are on the HALF grid.
-
-    implicit none
-    
-    real(rp) :: theta_vmec_try, fzero_residual
-    real(rp) :: angle, sinangle, cosangle
-    integer :: imn, which_surface
-
-    ! residual = (theta_pest based on theta_vmec_try) - theta_pest_target = theta_vmec_try + Lambda - theta_pest_target
-    fzero_residual = theta_vmec_try - theta_pest_target
-
-    do imn = 1, mnmax
-       angle = xm(imn)*theta_vmec_try - xn(imn)*zeta0
-       sinangle = sin(angle)
-       cosangle = cos(angle)
-       do which_surface = 1,2
-          fzero_residual = fzero_residual + vmec_radial_weight_half(which_surface) * lmns(imn,vmec_radial_index_half(which_surface)) * sinangle
-          if (lasym) then
-             fzero_residual = fzero_residual + vmec_radial_weight_half(which_surface) * lmnc(imn,vmec_radial_index_half(which_surface)) * cosangle
-          end if
-       end do
-    end do
-
-  end function fzero_residual
-
-end module vmec2sfl_mod
+end module
