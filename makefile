@@ -4,16 +4,9 @@ OBJS_DIR := objs
 SRC_F90 := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f90' | sed "s|^\./||"))
 SRC_F := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f' | sed "s|^\./||"))
 
-$(info $(SRC_F90))
-$(info $(SRC_F))
-
 OBJS_F90 := $(subst .f90,.o,$(SRC_F90))
 OBJS_F := $(subst .f,.o,$(SRC_F))
 OBJS_LINK := $(addprefix $(OBJS_DIR)/,$(OBJS_F90)) $(addprefix $(OBJS_DIR)/,$(OBJS_F))
-
-$(info $(OBJS_F90))
-$(info $(OBJS_F))
-$(info $(OBJS_LINK))
 
 INCS := -I$(OBJS_DIR) -J$(OBJS_DIR)
 
@@ -59,13 +52,13 @@ export
 include makefile.depend
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f90
-	$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
+	@$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f
-	$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
+	@$(FC) $(FCFLAGS) $(INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
 
 $(EXEC): $(OBJS_LINK)
-	$(FC) -o $@ $^ $(LIBSTELL) $(LDFLAGS)
+	@$(FC) -o $@ $^ $(LIBSTELL) $(LDFLAGS)
 
 #$(LIBSTELL):
 libstell:

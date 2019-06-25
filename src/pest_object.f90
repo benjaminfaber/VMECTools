@@ -20,7 +20,7 @@ module pest_object
     ! List of all the calculated quantities
     ! On exit, s0 holds the flux surface that was actually used for the geometry,
     ! as measured by psi_toroidal / psi_{toroidal,edge}
-    real(dp) :: s0
+    real(dp), allocatable :: s0
 
     ! The rotational transform iota
     real(dp) :: iota
@@ -45,40 +45,42 @@ module pest_object
     real(dp) :: B_ref
 
     ! Integers representing the number of points in each SFL direction 
-    integer :: ns, nalpha, nzeta
+    integer :: nx1, nx2, nx3
 
     ! Integers representing the starting and ending array indices
-    integer :: is1, is2, ia1, ia2, iz1, iz2
+    integer :: ix11, ix12, ix21, ix22, ix31, ix32
 
     ! On exit, s holds the grid points in the first coordinate (flux surface label)
     ! Typically, this is psi_t = normalized_toroidal_flux
-    real(dp), dimension(:), allocatable :: s(:)
+    real(dp), dimension(:), allocatable :: x1(:)
 
     ! On exit, alpha holds the grid points in the second coordinate (field line label)
     ! Typically, this is alpha = theta_p - iota * zeta, where zeta is the PEST (geometric) toroidal angle
     ! and theta_p is the PEST poloidal angle
-    real(dp), dimension(:), allocatable :: alpha(:)
+    real(dp), dimension(:), allocatable :: x2(:)
 
     ! On exit, zeta holds the grid points in the third coordinate (field line following coordinate)
     ! Typically, this is zeta = zeta, where zeta is the PEST (geometric) toroidal angle
-    real(dp), dimension(:), allocatable :: zeta(:)
+    real(dp), dimension(:), allocatable :: x3(:)
+
+    character(len=5) :: x3_coord
 
     ! Arrays that contain the geometric elements on the surface
     real(dp), dimension(:,:,:), allocatable :: bmag  ! Magnitude of B (|B|)
     real(dp), dimension(:,:,:), allocatable :: jac ! Jacobian (grad s . grad alpha x grad zeta)^(-1)
-    real(dp), dimension(:,:,:), allocatable :: gss ! Metric element gss
-    real(dp), dimension(:,:,:), allocatable :: gsa ! Metric element gsa
-    real(dp), dimension(:,:,:), allocatable :: gaa ! Metric element gaa
-    real(dp), dimension(:,:,:), allocatable :: gsz ! Metric element gsz
-    real(dp), dimension(:,:,:), allocatable :: gaz ! Metric element gaz
-    real(dp), dimension(:,:,:), allocatable :: gzz ! Metric element gzz
+    real(dp), dimension(:,:,:), allocatable :: g11 ! Metric element gss
+    real(dp), dimension(:,:,:), allocatable :: g12 ! Metric element gsa
+    real(dp), dimension(:,:,:), allocatable :: g22 ! Metric element gaa
+    real(dp), dimension(:,:,:), allocatable :: g13 ! Metric element gsz
+    real(dp), dimension(:,:,:), allocatable :: g23 ! Metric element gaz
+    real(dp), dimension(:,:,:), allocatable :: g33 ! Metric element gzz
     real(dp), dimension(:,:,:), allocatable :: d_B_d_s ! Derivative of |B| w.r.t. the 1 coordinate
     real(dp), dimension(:,:,:), allocatable :: d_B_d_alpha ! Derivative of |B| w.r.t. the 2 coordinate
     real(dp), dimension(:,:,:), allocatable :: d_B_d_zeta ! Derivative of |B| w.t.t. the 3 coordinate
 
     real(dp), dimension(:,:,:), allocatable :: Rsurf ! The R coordinate of the surfaces
     real(dp), dimension(:,:,:), allocatable :: Zsurf ! The Z coordinate of the surfaces
-    real(dp), dimension(:,:,:), allocatable :: d_L_d_theta_v ! The Z coordinate of the surfaces
+    real(dp), dimension(:,:,:), allocatable :: d_Lambda_d_theta_vmec ! The Z coordinate of the surfaces
 
   end type ! end type PEST_Obj
 
@@ -140,63 +142,70 @@ module pest_object
 !  real(dp), dimension(:,:), allocatable :: Zsurf ! Z coordinate as a function of straight field line angles
 contains
 
-  type(PEST_Obj) function create_from_VMEC_Obj(vmec,ns,n_alpha,n_zeta) result(pest)
+  type(PEST_Obj) function create_from_VMEC_Obj(vmec,surfaces,n_field_lines,n_parallel_pts) result(pest)
     type(VMEC_Obj), intent(in) :: vmec
-    integer, intent(in) :: ns, n_alpha, n_zeta
-    integer :: j
+    integer, intent(in) :: n_field_lines, n_parallel_pts
+    real(dp), dimension(:), intent(in) :: surfaces
+    integer :: j, nsurf
     real(dp) :: edge_toroidal_flux_over_2pi
     character(len=7) :: norm_type
+    character(len=5) :: x3_coord
     logical :: verbose
     norm_type = 'minor_r'
-    verbose = .false.
+    x3_coord = 'theta'
+    verbose = .true.
+    nsurf = size(surfaces)
 
     pest%vmec = vmec
-    pest%ns = ns
-    pest%nalpha = n_alpha
-    pest%nzeta = n_zeta+1
+    pest%nx1 = nsurf
+    pest%nx2 = n_field_lines
+    pest%nx3 = n_parallel_pts+1
+    pest%x3_coord = x3_coord
 
-    pest%is1 = 1
-    pest%is2 = 1
-    pest%ia1 = 0
-    pest%ia2 = n_alpha-1
-    pest%iz1 = -n_zeta/2
-    pest%iz2 = n_zeta/2
+    pest%ix11 = 0
+    pest%ix12 = nsurf-1
+    pest%ix21 = 0
+    pest%ix22 = n_field_lines-1
+    pest%ix31 = -n_parallel_pts/2
+    pest%ix32 = n_parallel_pts/2
 
-    if(allocated(pest%s)) deallocate(pest%s)
-    if(allocated(pest%alpha)) deallocate(pest%alpha)
-    if(allocated(pest%zeta)) deallocate(pest%zeta)
+    if(allocated(pest%x1)) deallocate(pest%x1)
+    if(allocated(pest%x2)) deallocate(pest%x2)
+    if(allocated(pest%x3)) deallocate(pest%x3)
     if(allocated(pest%bmag)) deallocate(pest%bmag)
     if(allocated(pest%jac)) deallocate(pest%jac)
-    if(allocated(pest%gss)) deallocate(pest%gss)
-    if(allocated(pest%gsa)) deallocate(pest%gsa)
-    if(allocated(pest%gaa)) deallocate(pest%gaa)
-    if(allocated(pest%gsz)) deallocate(pest%gsz)
-    if(allocated(pest%gaz)) deallocate(pest%gaz)
-    if(allocated(pest%gzz)) deallocate(pest%gzz)
+    if(allocated(pest%g11)) deallocate(pest%g11)
+    if(allocated(pest%g12)) deallocate(pest%g12)
+    if(allocated(pest%g22)) deallocate(pest%g22)
+    if(allocated(pest%g13)) deallocate(pest%g13)
+    if(allocated(pest%g23)) deallocate(pest%g23)
+    if(allocated(pest%g33)) deallocate(pest%g33)
     if(allocated(pest%d_B_d_s)) deallocate(pest%d_B_d_s)
     if(allocated(pest%d_B_d_alpha)) deallocate(pest%d_B_d_alpha)
     if(allocated(pest%d_B_d_zeta)) deallocate(pest%d_B_d_zeta)
     if(allocated(pest%Rsurf)) deallocate(pest%Rsurf)
     if(allocated(pest%Zsurf)) deallocate(pest%Zsurf)
-    if(allocated(pest%d_L_d_theta_v)) deallocate(pest%d_L_d_theta_v)
+    if(allocated(pest%d_Lambda_d_theta_vmec)) deallocate(pest%d_Lambda_d_theta_vmec)
 
-    allocate(pest%s(pest%ns))
-    allocate(pest%alpha(pest%ia1:pest%ia2))
-    allocate(pest%zeta(pest%iz1:pest%iz2))
-    allocate(pest%bmag(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%jac(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%gss(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%gsa(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%gaa(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%gsz(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%gaz(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%gzz(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%d_B_d_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%d_B_d_alpha(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%d_B_d_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%Rsurf(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%Zsurf(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
-    allocate(pest%d_L_d_theta_v(pest%ia1:pest%ia2,pest%iz1:pest%iz2,pest%ns))
+    allocate(pest%x1(pest%ix11:pest%ix12))
+    allocate(pest%x2(pest%ix21:pest%ix22))
+    allocate(pest%x3(pest%ix31:pest%ix32))
+    allocate(pest%bmag(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%jac(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%g11(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%g12(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%g22(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%g13(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%g23(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%g33(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%d_B_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%d_B_d_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%d_B_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%Rsurf(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%Zsurf(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+    allocate(pest%d_Lambda_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+
+    pest%x1 = surfaces
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Set reference values
@@ -223,36 +232,37 @@ contains
 
   end function
 
-  type(PEST_Obj) function create_from_VMEC_file(VMEC_file,ns,n_alpha,n_zeta) result(pest)
+  type(PEST_Obj) function create_from_VMEC_file(VMEC_file,surfaces,n_alpha,n_parallel) result(pest)
     character(len=2000), intent(in) :: VMEC_file
-    integer, intent(in) :: ns, n_alpha, n_zeta
+    integer, intent(in) :: n_alpha, n_parallel
+    real(dp), dimension(:), intent(in) :: surfaces
     type(VMEC_Obj) :: vmec
 
     vmec = create_VMEC_Obj(VMEC_file)
-    pest = create_from_VMEC_Obj(vmec,ns,n_alpha,n_zeta)
+    pest = create_from_VMEC_Obj(vmec,surfaces,n_alpha,n_parallel)
   end function
  
   subroutine destroy_PEST_Obj(pest)
     type(PEST_Obj), intent(inout) :: pest
     
     call destroy_VMEC_Obj(pest%vmec)
-    deallocate(pest%s)
-    deallocate(pest%alpha)
-    deallocate(pest%zeta)
+    deallocate(pest%x1)
+    deallocate(pest%x2)
+    deallocate(pest%x3)
     deallocate(pest%bmag)
     deallocate(pest%jac)
-    deallocate(pest%gss)
-    deallocate(pest%gsa)
-    deallocate(pest%gaa)
-    deallocate(pest%gsz)
-    deallocate(pest%gaz)
-    deallocate(pest%gzz)
+    deallocate(pest%g11)
+    deallocate(pest%g12)
+    deallocate(pest%g22)
+    deallocate(pest%g13)
+    deallocate(pest%g23)
+    deallocate(pest%g33)
     deallocate(pest%d_B_d_s)
     deallocate(pest%d_B_d_alpha)
     deallocate(pest%d_B_d_zeta)
     deallocate(pest%Rsurf)
     deallocate(pest%Zsurf)
-    deallocate(pest%d_L_d_theta_v)
+    deallocate(pest%d_Lambda_d_theta_vmec)
   end subroutine
 
 end module 

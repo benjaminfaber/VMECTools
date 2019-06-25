@@ -31,7 +31,7 @@ contains
   subroutine compute_pest_surface(desired_normalized_toroidal_flux,&
     &vmec_surface_option, pest)
 
-    !use read_wout_mod,pest%iz2_vmec => pest%nzeta ! VMEC has a variable ngzrid which conflicts with our pest%nzeta, so rename vmec's version.
+    !use read_wout_mod,pest%ix32_vmec => pest%nx3 ! VMEC has a variable ngzrid which conflicts with our pest%nx3, so rename vmec's version.
 
     implicit none
     !*********************************************************************
@@ -131,7 +131,7 @@ contains
     select case (vmec_surface_option)
     case (0)
        ! Use exact radius requested.
-       pest%s0 = desired_normalized_toroidal_flux
+       pest%x1(pest%ix11) = desired_normalized_toroidal_flux
 
     case (1)
        ! Use nearest value of the VMEC half grid
@@ -150,7 +150,7 @@ contains
           end if
        end do
 
-       pest%s0 = normalized_toroidal_flux_half_grid(index)
+       pest%x1(pest%ix11) = normalized_toroidal_flux_half_grid(index)
        deallocate(dr2)
 
     case (2)
@@ -170,7 +170,7 @@ contains
           end if
        end do
 
-       pest%s0 = normalized_toroidal_flux_full_grid(index)
+       pest%x1(pest%ix11) = normalized_toroidal_flux_full_grid(index)
        deallocate(dr2)
 
     case default
@@ -193,56 +193,56 @@ contains
 
 
     ! Handle quantities for the full grid
-    if (pest%s0>1) then
-       stop "Error! pest%s0 cannot be >1"
-    elseif (pest%s0<0) then
-       stop "Error! pest%s0 cannot be <0"
-    elseif (pest%s0==1) then
+    if (pest%x1(pest%ix11)>1) then
+       stop "Error! pest%x1(pest%ix11) cannot be >1"
+    elseif (pest%x1(pest%ix11)<0) then
+       stop "Error! pest%x1(pest%ix11) cannot be <0"
+    elseif (pest%x1(pest%ix11)==1) then
        vmec_radial_index_full(1) = ns-1
        vmec_radial_index_full(2) = ns
        vmec_radial_weight_full(1) = 0.0d0
     else
-       ! pest%s0 is >= 0 and <1
+       ! pest%x1(pest%ix11) is >= 0 and <1
        ! This is the most common case.
-       vmec_radial_index_full(1) = floor(pest%s0*(ns-1))+1
+       vmec_radial_index_full(1) = floor(pest%x1(pest%ix11)*(ns-1))+1
        vmec_radial_index_full(2) = vmec_radial_index_full(1) + 1
-       vmec_radial_weight_full(1) = vmec_radial_index_full(1) - pest%s0*(ns-1.0d0)
+       vmec_radial_weight_full(1) = vmec_radial_index_full(1) - pest%x1(pest%ix11)*(ns-1.0d0)
     end if
     vmec_radial_weight_full(2) = 1.0d0 - vmec_radial_weight_full(1)
 
     ! Handle quantities for the half grid
-    if (pest%s0 < normalized_toroidal_flux_half_grid(1)) then
+    if (pest%x1(pest%ix11) < normalized_toroidal_flux_half_grid(1)) then
        print *,"Warning: extrapolating beyond the end of VMEC's half grid."
        print *,"(Extrapolating towards the magnetic axis.) Results are likely to be inaccurate."
 
        ! We start at element 2 since element 1 is always 0 for quantities on the half grid.
        vmec_radial_index_half(1) = 2
        vmec_radial_index_half(2) = 3
-       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(2) - pest%s0) / (normalized_toroidal_flux_half_grid(2) - normalized_toroidal_flux_half_grid(1))
+       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(2) - pest%x1(pest%ix11)) / (normalized_toroidal_flux_half_grid(2) - normalized_toroidal_flux_half_grid(1))
 
-    elseif (pest%s0 > normalized_toroidal_flux_half_grid(ns-1)) then
+    elseif (pest%x1(pest%ix11) > normalized_toroidal_flux_half_grid(ns-1)) then
        print *,"Warning: extrapolating beyond the end of VMEC's half grid."
        print *,"(Extrapolating towards the last closed flux surface.) Results may be inaccurate."
        vmec_radial_index_half(1) = ns-1
        vmec_radial_index_half(2) = ns
-       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(ns-1) - pest%s0) &
+       vmec_radial_weight_half(1) = (normalized_toroidal_flux_half_grid(ns-1) - pest%x1(pest%ix11)) &
             / (normalized_toroidal_flux_half_grid(ns-1) - normalized_toroidal_flux_half_grid(ns-2))
 
-    elseif (pest%s0 == normalized_toroidal_flux_half_grid(ns-1)) then
+    elseif (pest%x1(pest%ix11) == normalized_toroidal_flux_half_grid(ns-1)) then
        ! We are exactly at the last point of the half grid
        vmec_radial_index_half(1) = ns-1
        vmec_radial_index_half(2) = ns
        vmec_radial_weight_half(1) = 0.0d0
     else
-       ! pest%s0 is inside the half grid.
+       ! pest%x1(pest%ix11) is inside the half grid.
        ! This is the most common case.
-       vmec_radial_index_half(1) = floor(pest%s0*(ns-1) + 0.5d+0)+1
+       vmec_radial_index_half(1) = floor(pest%x1(pest%ix11)*(ns-1) + 0.5d+0)+1
        if (vmec_radial_index_half(1) < 2) then
           ! This can occur sometimes due to roundoff error.
           vmec_radial_index_half(1) = 2
        end if
        vmec_radial_index_half(2) = vmec_radial_index_half(1) + 1
-       vmec_radial_weight_half(1) = vmec_radial_index_half(1) - pest%s0*(ns-1.0d0) - (0.5d+0)
+       vmec_radial_weight_half(1) = vmec_radial_index_half(1) - pest%x1(pest%ix11)*(ns-1.0d0) - (0.5d+0)
     end if
     vmec_radial_weight_half(2) = 1.0d0-vmec_radial_weight_half(1)
 
@@ -283,7 +283,7 @@ contains
     if (verbose) print *,"  d pest%iota / d s =",d_iota_d_s
     ! shat = (r/q)(dq/dr) where r = a sqrt(s).
     !      = - (r/pest%iota) (d pest%iota / d r) = -2 (s/pest%iota) (d pest%iota / d s)
-    pest%shat = (-2 * pest%s0 / pest%iota) * d_iota_d_s
+    pest%shat = (-2 * pest%x1(pest%ix11) / pest%iota) * d_iota_d_s
 
     allocate(d_pressure_d_s_on_half_grid(ns))
     d_pressure_d_s_on_half_grid = 0
@@ -311,12 +311,12 @@ contains
     ! Input parameters
     !***************************************************************************
 
-    ! The pest%zeta domain is centered at zeta_center. Setting zeta_center = 2*pi*N/nfp for any integer N should
+    ! The pest%x3 domain is centered at zeta_center. Setting zeta_center = 2*pi*N/nfp for any integer N should
     ! yield identical results to setting zeta_center = 0, where nfp is the number of field periods (as in VMEC).
     real(dp), intent(in) :: zeta_center
 
     ! If number_of_field_periods_to_include is > 0, then this parameter does what you think:
-    ! the extent of the toroidal in pest%zeta will be 2*pi*number_of_field_periods_to_include/nfp.
+    ! the extent of the toroidal in pest%x3 will be 2*pi*number_of_field_periods_to_include/nfp.
     ! If number_of_field_periods_to_include is <= 0, the entire 2*pi toroidal domain will be included.
     real(dp), intent(in) :: number_of_field_periods_to_include
     type(PEST_Obj), intent(inout) :: pest
@@ -352,6 +352,7 @@ contains
     real(dp), dimension(:,:), allocatable :: grad_s_X, grad_s_Y, grad_s_Z
     real(dp), dimension(:,:), allocatable :: grad_theta_vmec_X, grad_theta_vmec_Y, grad_theta_vmec_Z
     real(dp), dimension(:,:), allocatable :: grad_zeta_X, grad_zeta_Y, grad_zeta_Z
+    real(dp), dimension(:,:), allocatable :: grad_theta_X, grad_theta_Y, grad_theta_Z
     real(dp), dimension(:,:), allocatable :: grad_psi_X, grad_psi_Y, grad_psi_Z
     real(dp), dimension(:,:), allocatable :: grad_alpha_X, grad_alpha_Y, grad_alpha_Z
     real(dp), dimension(:,:), allocatable :: B_cross_grad_B_dot_grad_alpha, B_cross_grad_B_dot_grad_alpha_alternate
@@ -360,7 +361,7 @@ contains
     real(dp), dimension(:,:), allocatable :: B_X, B_Y, B_Z
     logical :: verbose, test
     verbose = .true.
-    test = .true.
+    test = .false.
     !*********************************************************************
     ! Read in everything from the vmec wout file using libstell.
     !*********************************************************************
@@ -377,13 +378,13 @@ contains
     ! Do some validation.
     !*********************************************************************
 
-    if (pest%nalpha<1) then
-       print *,"Error! pest%nalpha must be >= 1. Instead it is",pest%nalpha
+    if (pest%nx2<1) then
+       print *,"Error! pest%nx2 must be >= 1. Instead it is",pest%nx2
        stop
     end if
 
-    if (pest%nzeta<1) then
-       print *,"Error! pest%nzeta must be >= 1. Instead it is",pest%nzeta
+    if (pest%nx3<1) then
+       print *,"Error! pest%nx3 must be >= 1. Instead it is",pest%nx3
        stop
     end if
 
@@ -392,7 +393,7 @@ contains
     ! Set up the coordinate grids.
     !*********************************************************************
 
-    pest%alpha = [( (j*2*pi) / pest%nalpha, j=pest%ia1, pest%ia2 )]
+    pest%x2 = [( (j*2*pi) / pest%nx2, j=pest%ix21, pest%ix22 )]
 
 !!$    if (number_of_field_periods_to_include > nfp) then
 !!$       print *,"Error! number_of_field_periods_to_include > nfp"
@@ -406,22 +407,26 @@ contains
        if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",pest%vmec%nfp
     end if
 
-    pest%zeta = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nzeta-1)), j=pest%iz1,pest%iz2 )]
+!    pest%x3 = [( zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+do j=pest%ix31,pest%ix32
+  pest%x3(j) = zeta_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))
+  print *, pest%x3(j),' ',pi*j,' ',pi*j*number_of_field_periods_to_include_final,' ',pest%vmec%nfp,' ',(pest%nx3-1)/2
+end do
 
     !*********************************************************************
-    ! We know theta_pest = alpha + pest%iota * pest%zeta, but we need to determine
+    ! We know theta_pest = alpha + pest%iota * pest%x3, but we need to determine
     ! theta_vmec = theta_pest - Lambda.
     !*********************************************************************
 
-    allocate(theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
+    allocate(theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
     if (verbose) print *,"  Beginning root solves to determine theta_vmec."
     root_solve_absolute_tolerance = 1.0d-10
     root_solve_relative_tolerance = 1.0d-10
-    do iz = pest%iz1,pest%iz2
-       zeta0 = pest%zeta(iz)
-       do ia = pest%ia1,pest%ia2
-          theta_pest_target = pest%alpha(ia) + pest%iota * zeta0
+    do iz = pest%ix31,pest%ix32
+       zeta0 = pest%x3(iz)
+       do ia = pest%ix21,pest%ix22
+          theta_pest_target = pest%x2(ia) + pest%iota * zeta0
           ! Guess that theta_vmec will be within 0.3 radians of theta_pest:
           theta_vmec_min = theta_pest_target - 0.3
           theta_vmec_max = theta_pest_target + 0.3
@@ -440,7 +445,7 @@ contains
     end do
     if (verbose) then
        print *,"  Done with root solves. Here comes theta_vmec:"
-       do j = pest%ia1,pest%ia2
+       do j = pest%ix21,pest%ix22
           print *,theta_vmec(j,:)
        end do
     end if
@@ -462,28 +467,28 @@ contains
 !    d_B_d_par = 0
 
 
-    allocate(B(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(temp2D(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(sqrt_g(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(R(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_B_d_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_B_d_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_B_d_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_R_d_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_R_d_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_R_d_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Z_d_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Z_d_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Z_d_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Lambda_d_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Lambda_d_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Lambda_d_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_sub_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_sub_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_sub_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_sup_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_sup_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
+    allocate(B(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(temp2D(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(sqrt_g(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(R(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_B_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_B_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_B_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_R_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_R_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_R_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Z_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Z_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Z_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Lambda_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sub_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sub_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sub_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sup_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_sup_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
     allocate(d_B_d_s_mnc(ns))
     allocate(d_B_d_s_mns(ns))
@@ -494,39 +499,42 @@ contains
     allocate(d_Lambda_d_s_mnc(ns))
     allocate(d_Lambda_d_s_mns(ns))
 
-    allocate(d_X_d_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_X_d_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_X_d_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Y_d_s(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Y_d_theta_vmec(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(d_Y_d_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
+    allocate(d_X_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_X_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_X_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Y_d_s(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Y_d_theta_vmec(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(d_Y_d_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
-    allocate(grad_s_X(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_s_Y(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_s_Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_theta_vmec_X(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_theta_vmec_Y(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_theta_vmec_Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_zeta_X(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_zeta_Y(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_zeta_Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_psi_X(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_psi_Y(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_psi_Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_alpha_X(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_alpha_Y(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_alpha_Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
+    allocate(grad_s_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_s_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_s_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_vmec_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_zeta_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_zeta_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_zeta_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_theta_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_psi_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_psi_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_psi_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_alpha_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_alpha_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_alpha_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
     
-    allocate(B_X(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_Y(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_B_X(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_B_Y(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(grad_B_Z(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_cross_grad_B_dot_grad_alpha(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_cross_grad_B_dot_grad_alpha_alternate(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_cross_grad_s_dot_grad_alpha(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-    allocate(B_cross_grad_s_dot_grad_alpha_alternate(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
+    allocate(B_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_B_X(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_B_Y(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(grad_B_Z(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_B_dot_grad_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_B_dot_grad_alpha_alternate(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_s_dot_grad_alpha(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    allocate(B_cross_grad_s_dot_grad_alpha_alternate(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
 
     B = 0
     sqrt_g = 0
@@ -616,9 +624,9 @@ contains
 
        ! End of evaluating radial derivatives.
 
-       do iz = pest%iz1,pest%iz2
-          do ia = pest%ia1,pest%ia2
-             angle = m * theta_vmec(ia,iz) - n * pest%vmec%nfp * pest%zeta(iz)
+       do iz = pest%ix31,pest%ix32
+          do ia = pest%ix21,pest%ix22
+             angle = m * theta_vmec(ia,iz) - n * pest%vmec%nfp * pest%x3(iz)
              cos_angle = cos(angle)
              sin_angle = sin(angle)
 
@@ -641,7 +649,7 @@ contains
                 temp = temp*scale_factor
                 B_sup_theta_vmec(ia,iz) = B_sup_theta_vmec(ia,iz) + temp * cos_angle
 
-                ! Handle B sup pest%zeta:
+                ! Handle B sup pest%x3:
                 temp = pest%vmec%bsupvmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 B_sup_zeta(ia,iz) = B_sup_zeta(ia,iz) + temp * cos_angle
@@ -651,7 +659,7 @@ contains
                 temp = temp*scale_factor
                 B_sub_theta_vmec(ia,iz) = B_sub_theta_vmec(ia,iz) + temp * cos_angle
 
-                ! Handle B sub pest%zeta:
+                ! Handle B sub pest%x3:
                 temp = pest%vmec%bsubvmnc(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                 temp = temp*scale_factor
                 B_sub_zeta(ia,iz) = B_sub_zeta(ia,iz) + temp * cos_angle
@@ -695,6 +703,10 @@ contains
                    ! Handle d R / d s
                    ! Since R is on the full mesh, its radial derivative is on the half mesh.
                    temp = d_R_d_s_mnc(vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
+if ((imn .le. 3) .and. (ia .eq. 0) .and. (abs(iz) <= 1)) then
+print *, vmec_radial_index_half(isurf),' ',pest%vmec%rmnc(imn,vmec_radial_index_half(isurf)),' ',d_R_d_s_mnc(vmec_radial_index_half(isurf)),' ',vmec_radial_weight_half(isurf)
+print *, "===="
+end if
                    temp = temp*scale_factor
                    d_R_d_s(ia,iz) = d_R_d_s(ia,iz) + temp * cos_angle
 
@@ -753,9 +765,9 @@ contains
 
           ! End of evaluating radial derivatives.
 
-          do iz = pest%iz1,pest%iz2
-             do ia = pest%ia1,pest%ia2
-                angle = m * theta_vmec(ia,iz) - n * pest%vmec%nfp * pest%zeta(iz)
+          do iz = pest%ix31,pest%ix32
+             do ia = pest%ix21,pest%ix22
+                angle = m * theta_vmec(ia,iz) - n * pest%vmec%nfp * pest%x3(iz)
                 cos_angle = cos(angle)
                 sin_angle = sin(angle)
 
@@ -778,7 +790,7 @@ contains
                    temp = temp*scale_factor
                    B_sup_theta_vmec(ia,iz) = B_sup_theta_vmec(ia,iz) + temp * sin_angle
 
-                   ! Handle B sup pest%zeta:
+                   ! Handle B sup pest%x3:
                    temp = pest%vmec%bsupvmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    B_sup_zeta(ia,iz) = B_sup_zeta(ia,iz) + temp * sin_angle
@@ -788,7 +800,7 @@ contains
                    temp = temp*scale_factor
                    B_sub_theta_vmec(ia,iz) = B_sub_theta_vmec(ia,iz) + temp * sin_angle
 
-                   ! Handle B sub pest%zeta:
+                   ! Handle B sub pest%x3:
                    temp = pest%vmec%bsubvmns(imn_nyq,vmec_radial_index_half(isurf)) * vmec_radial_weight_half(isurf)
                    temp = temp*scale_factor
                    B_sub_zeta(ia,iz) = B_sub_zeta(ia,iz) + temp * sin_angle
@@ -856,13 +868,13 @@ contains
     !*********************************************************************
     ! Sanity check: If the conversion to theta_pest has been done 
     ! correctly, we should find that 
-    ! (B dot grad theta_pest) / (B dot grad pest%zeta) = pest%iota.
+    ! (B dot grad theta_pest) / (B dot grad pest%x3) = pest%iota.
     ! Let's verify this:
     !*********************************************************************
     
     if (test) then
-      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(pest%ia1:pest%ia2,pest%iz1:pest%iz2))
-      ! Compute (B dot grad theta_pest) / (B dot grad pest%zeta):
+      allocate(B_dot_grad_theta_pest_over_B_dot_grad_zeta(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+      ! Compute (B dot grad theta_pest) / (B dot grad pest%x3):
       B_dot_grad_theta_pest_over_B_dot_grad_zeta = &
         & (B_sup_theta_vmec * (1 + d_Lambda_d_theta_vmec) + B_sup_zeta * d_Lambda_d_zeta) / B_sup_zeta 
       temp2D = pest%iota
@@ -871,29 +883,29 @@ contains
     end if
 
     !*********************************************************************
-    ! Using R(theta,pest%zeta) and Z(theta,pest%zeta), compute the Cartesian
+    ! Using R(theta,zeta) and Z(theta,zeta), compute the Cartesian
     ! components of the gradient basis vectors using the dual relations:
     !*********************************************************************
 
-    sqrt_s = sqrt(pest%s0)
+    sqrt_s = sqrt(pest%x1(pest%ix11))
 
-    do iz = pest%iz1,pest%iz2
-       cos_angle = cos(pest%zeta(iz))
-       sin_angle = sin(pest%zeta(iz))
+    do iz = pest%ix31,pest%ix32
+       cos_angle = cos(pest%x3(iz))
+       sin_angle = sin(pest%x3(iz))
 
-       ! X = R * cos(pest%zeta)
+       ! X = R * cos(pest%x3)
        d_X_d_theta_vmec(:,iz) = d_R_d_theta_vmec(:,iz) * cos_angle
        d_X_d_zeta(:,iz) = d_R_d_zeta(:,iz) * cos_angle - R(:,iz) * sin_angle
        d_X_d_s(:,iz) = d_R_d_s(:,iz) * cos_angle
 
-       ! Y = R * sin(pest%zeta)
+       ! Y = R * sin(pest%x3)
        d_Y_d_theta_vmec(:,iz) = d_R_d_theta_vmec(:,iz) * sin_angle
        d_Y_d_zeta(:,iz) = d_R_d_zeta(:,iz) * sin_angle + R(:,iz) * cos_angle
        d_Y_d_s(:,iz) = d_R_d_s(:,iz) * sin_angle
 
     end do
 
-    ! Use the dual relations to get the Cartesian components of grad s, grad theta_vmec, and grad pest%zeta:
+    ! Use the dual relations to get the Cartesian components of grad s, grad theta_vmec, and grad pest%x3:
     grad_s_X = (d_Y_d_theta_vmec * d_Z_d_zeta - d_Z_d_theta_vmec * d_Y_d_zeta) / sqrt_g
     grad_s_Y = (d_Z_d_theta_vmec * d_X_d_zeta - d_X_d_theta_vmec * d_Z_d_zeta) / sqrt_g
     grad_s_Z = (d_X_d_theta_vmec * d_Y_d_zeta - d_Y_d_theta_vmec * d_X_d_zeta) / sqrt_g
@@ -905,19 +917,36 @@ contains
     grad_zeta_X = (d_Y_d_s * d_Z_d_theta_vmec - d_Z_d_s * d_Y_d_theta_vmec) / sqrt_g
     grad_zeta_Y = (d_Z_d_s * d_X_d_theta_vmec - d_X_d_s * d_Z_d_theta_vmec) / sqrt_g
     grad_zeta_Z = (d_X_d_s * d_Y_d_theta_vmec - d_Y_d_s * d_X_d_theta_vmec) / sqrt_g
+print *, "===="
+print *, grad_zeta_Y(:,-1:1)
+print *,'----'
+print *,d_Z_d_s(:,-1:1)
+print *,'----'
+print *,d_X_d_theta_vmec(:,-1:1)
+print *,'----'
+print *,d_R_d_s(:,-1:1)
+print *,'----'
+print *,pest%x3(-1:1)
+print *,'----'
+print *,d_X_d_s(:,-1:1)
+print *,'----'
+print *,d_Z_d_theta_vmec(:,-1:1)
+print *,'----'
+print *,sqrt_g(:,-1:1)
+print *, "===="
     ! End of the dual relations.
 
     if (test) then
-      ! Sanity check: grad_zeta_X should be -sin(pest%zeta) / R:
-      do iz = pest%iz1,pest%iz2
-         temp2D(:,iz) = -sin(pest%zeta(iz)) / R(:,iz)
+      ! Sanity check: grad_zeta_X should be -sin(pest%x3) / R:
+      do iz = pest%ix31,pest%ix32
+         temp2D(:,iz) = -sin(pest%x3(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_X, temp2D, .false., 1.0e-2, 'grad_zeta_X')
       grad_zeta_X = temp2D ! We might as well use the exact value, which is in temp2D.
 
-      ! Sanity check: grad_zeta_Y should be cos(pest%zeta) / R:
-      do iz = pest%iz1,pest%iz2
-         temp2D(:,iz) = cos(pest%zeta(iz)) / R(:,iz)
+      ! Sanity check: grad_zeta_Y should be cos(pest%x3) / R:
+      do iz = pest%ix31,pest%ix32
+         temp2D(:,iz) = cos(pest%x3(iz)) / R(:,iz)
       end do
       call test_arrays(grad_zeta_Y, temp2D, .false., 1.0e-2, 'grad_zeta_Y')
       grad_zeta_Y = temp2D ! We might as well use the exact value, which is in temp2D.
@@ -935,18 +964,32 @@ contains
     grad_psi_Y = grad_s_Y * edge_toroidal_flux_over_2pi
     grad_psi_Z = grad_s_Z * edge_toroidal_flux_over_2pi
 
-    ! Form grad alpha = grad (theta_vmec + Lambda - pest%iota * pest%zeta)
-    do iz = pest%iz1,pest%iz2
-       grad_alpha_X(:,iz) = (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) * grad_s_X(:,iz)
-       grad_alpha_Y(:,iz) = (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) * grad_s_Y(:,iz)
-       grad_alpha_Z(:,iz) = (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) * grad_s_Z(:,iz)
-if (abs(pest%zeta(iz)) < 1e-8) then
-print *, grad_alpha_X(:,iz),' ',grad_alpha_Y(:,iz),' ', grad_alpha_Z(:,iz)
-end if
+    ! Form grad alpha = grad (theta_vmec + Lambda - pest%iota * pest%x3)
+    do iz = pest%ix31,pest%ix32
+       grad_alpha_X(:,iz) = (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) * grad_s_X(:,iz)
+       grad_alpha_Y(:,iz) = (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) * grad_s_Y(:,iz)
+       grad_alpha_Z(:,iz) = (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) * grad_s_Z(:,iz)
     end do
     grad_alpha_X = grad_alpha_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_X
     grad_alpha_Y = grad_alpha_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_Y
     grad_alpha_Z = grad_alpha_Z + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Z + (-pest%iota + d_Lambda_d_zeta) * grad_zeta_Z
+print *,"===="
+print *, grad_alpha_Y(:,-1:1)
+print *,'----'
+print *,d_Lambda_d_theta_vmec(:,-1:1)
+print *,'----'
+print *,grad_theta_vmec_Y(:,-1:1)
+print *,'----'
+print *,pest%iota
+print *,'----'
+print *,d_Lambda_d_zeta(:,-1:1)
+print *,'----'
+print *,grad_zeta_Y(:,-1:1)
+print *, "===="
+
+    grad_theta_X = d_Lambda_d_s * grad_s_X + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_X + d_Lambda_d_zeta * grad_zeta_X 
+    grad_theta_Y = d_Lambda_d_s * grad_s_Y + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Y + d_Lambda_d_zeta * grad_zeta_Y 
+    grad_theta_Z = d_Lambda_d_s * grad_s_Z + (1 + d_Lambda_d_theta_vmec) * grad_theta_vmec_Z + d_Lambda_d_zeta * grad_zeta_Z 
 
     grad_B_X = d_B_d_s * grad_s_X + d_B_d_theta_vmec * grad_theta_vmec_X + d_B_d_zeta * grad_zeta_X
     grad_B_Y = d_B_d_s * grad_s_Y + d_B_d_theta_vmec * grad_theta_vmec_Y + d_B_d_zeta * grad_zeta_Y
@@ -1026,12 +1069,12 @@ end if
          .false., 1.0e-2, 'B_cross_grad_s_dot_grad_alpha')
     end if
 
-    do iz = pest%iz1,pest%iz2
+    do iz = pest%ix31,pest%ix32
        B_cross_grad_B_dot_grad_alpha(:,iz) = 0 &
             + (B_sub_s(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_zeta(:,iz) - pest%iota) &
-            + B_sub_theta_vmec(:,iz) * d_B_d_zeta(:,iz) * (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) &
+            + B_sub_theta_vmec(:,iz) * d_B_d_zeta(:,iz) * (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) &
             + B_sub_zeta(:,iz) * d_B_d_s(:,iz) * (1 + d_Lambda_d_theta_vmec(:,iz)) &
-            - B_sub_zeta(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_s(:,iz) - pest%zeta(iz) * d_iota_d_s) &
+            - B_sub_zeta(:,iz) * d_B_d_theta_vmec(:,iz) * (d_Lambda_d_s(:,iz) - pest%x3(iz) * d_iota_d_s) &
             - B_sub_theta_vmec(:,iz) * d_B_d_s(:,iz) * (d_Lambda_d_zeta(:,iz) - pest%iota) &
             - B_sub_s(:,iz) * d_B_d_zeta(:,iz) * (1 + d_Lambda_d_theta_vmec(:,iz))) / sqrt_g(:,iz)
     end do
@@ -1049,15 +1092,31 @@ end if
          .false., 1.0e-2, 'B_cross_grad_B_dot_grad_alpha')
     end if
 
-    pest%bmag(:,:,1) = B    
-    pest%jac(:,:,1) = sqrt_g
-    pest%gss(:,:,1) = 4.0/((pest%B_ref**2)*(pest%L_ref**4))*(grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z)
-    pest%gsa(:,:,1) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z)
-    pest%gaa(:,:,1) = grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z
-    pest%gsz(:,:,1) = 2.0/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_zeta_X + grad_psi_Y * grad_zeta_Y + grad_psi_Z * grad_zeta_Z)
-    pest%gaz(:,:,1) = grad_alpha_X * grad_zeta_X + grad_alpha_Y * grad_zeta_Y + grad_alpha_Z * grad_zeta_Z
-    pest%gzz(:,:,1) = grad_zeta_X * grad_zeta_X + grad_zeta_Y * grad_zeta_Y + grad_zeta_Z * grad_zeta_Z
-    pest%d_L_d_theta_v(:,:,1) = d_Lambda_d_theta_vmec
+    pest%bmag(:,:,pest%ix11) = B 
+    pest%jac(:,:,pest%ix11) = sqrt_g
+    pest%g11(:,:,pest%ix11) = 4.0/((pest%B_ref**2)*(pest%L_ref**4))*(grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z)
+    pest%g12(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_alpha_X + grad_psi_Y * grad_alpha_Y + grad_psi_Z * grad_alpha_Z)
+    pest%g22(:,:,pest%ix11) = grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z
+print *,"===="
+print *,grad_alpha_X(:,-1:1)
+print *,'----'
+print *,grad_alpha_Y(:,-1:1)
+print *,'----'
+print *,grad_alpha_Z(:,-1:1)
+print *,'----'
+print *,pest%g22(:,-1:1,1)
+print *,"===="
+    if (trim(pest%x3_coord) == 'zeta') then
+      pest%g13(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_zeta_X + grad_psi_Y * grad_zeta_Y + grad_psi_Z * grad_zeta_Z)
+      pest%g23(:,:,pest%ix11) = grad_alpha_X * grad_zeta_X + grad_alpha_Y * grad_zeta_Y + grad_alpha_Z * grad_zeta_Z
+      pest%g33(:,:,pest%ix11) = grad_zeta_X * grad_zeta_X + grad_zeta_Y * grad_zeta_Y + grad_zeta_Z * grad_zeta_Z
+    end if
+    if (trim(pest%x3_coord) == 'theta') then
+      pest%g13(:,:,pest%ix11) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*(grad_psi_X * grad_theta_X + grad_psi_Y * grad_theta_Y + grad_psi_Z * grad_theta_Z)
+      pest%g23(:,:,pest%ix11) = grad_alpha_X * grad_theta_X + grad_alpha_Y * grad_theta_Y + grad_alpha_Z * grad_theta_Z
+      pest%g33(:,:,pest%ix11) = grad_theta_X * grad_theta_X + grad_theta_Y * grad_theta_Y + grad_theta_Z * grad_theta_Z
+    end if
+    pest%d_Lambda_d_theta_vmec(:,:,pest%ix11) = d_Lambda_d_theta_vmec
     !*********************************************************************
     ! Finally, assemble the quantities needed for gs2.
     !*********************************************************************
@@ -1069,13 +1128,13 @@ end if
 !    gradpar = pest%L_ref * B_sup_zeta / B
 !
 !    gds2 = (grad_alpha_X * grad_alpha_X + grad_alpha_Y * grad_alpha_Y + grad_alpha_Z * grad_alpha_Z) &
-!         * pest%L_ref * pest%L_ref * pest%s0
+!         * pest%L_ref * pest%L_ref * pest%x1(pest%ix11)
 !
 !    gds21 = (grad_alpha_X * grad_psi_X + grad_alpha_Y * grad_psi_Y + grad_alpha_Z * grad_psi_Z) &
 !         * sign_toroidal_flux * shat / pest%B_ref
 !
 !    gds22 = (grad_psi_X * grad_psi_X + grad_psi_Y * grad_psi_Y + grad_psi_Z * grad_psi_Z) &
-!         * shat * shat / (pest%L_ref * pest%L_ref * pest%B_ref * pest%B_ref * pest%s0)
+!         * shat * shat / (pest%L_ref * pest%L_ref * pest%B_ref * pest%B_ref * pest%x1(pest%ix11))
 !
 !    gbdrift = sign_toroidal_flux * 2 * pest%B_ref * pest%L_ref * pest%L_ref * sqrt_s * B_cross_grad_B_dot_grad_alpha &
 !         / (B * B * B)
@@ -1149,6 +1208,9 @@ end if
     deallocate(grad_zeta_X)
     deallocate(grad_zeta_Y)
     deallocate(grad_zeta_Z)
+    deallocate(grad_theta_X)
+    deallocate(grad_theta_Y)
+    deallocate(grad_theta_Z)
     deallocate(grad_psi_X)
     deallocate(grad_psi_Y)
     deallocate(grad_psi_Z)
@@ -1183,7 +1245,7 @@ end if
 
       implicit none
 
-      real(dp), dimension(pest%ia1:pest%ia2,pest%iz1:pest%iz2) :: array1, array2
+      real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: array1, array2
       real(dp) :: tolerance
       character(len=*) :: name
       logical :: should_be_0
@@ -1194,7 +1256,7 @@ end if
          if (verbose) print *,"  maxval(abs(",trim(name),")):",max_value,"(should be << 1.)"
          if (max_value > tolerance) then
             print *,"Error! ",trim(name)," should be 0, but instead it is:"
-            do ia = pest%ia1,pest%ia2
+            do ia = pest%ix21,pest%ix22
                print *,array1(ia,:)
             end do
             stop
@@ -1204,15 +1266,15 @@ end if
          if (verbose) print *,"  Relative difference between two methods for computing ",trim(name),":",max_difference,"(should be << 1.)"
          if (max_difference > tolerance) then
             print *,"Error! Two methods for computing ",trim(name)," disagree. Here comes method 1:"
-            do ia = pest%ia1,pest%ia2
+            do ia = pest%ix21,pest%ix22
                print *,array1(ia,:)
             end do
             print *,"Here comes method 2:"
-            do ia = pest%ia1,pest%ia2
+            do ia = pest%ix21,pest%ix22
                print *,array2(ia,:)
             end do
             print *,"Here comes the difference:"
-            do ia = pest%ia1,pest%ia2
+            do ia = pest%ix21,pest%ix22
                print *,array1(ia,:) - array2(ia,:)
             end do
             stop
