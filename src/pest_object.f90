@@ -9,7 +9,7 @@ module pest_object
   use vmec_object, only: VMEC_Obj, create_VMEC_Obj, destroy_VMEC_Obj
   implicit none
 
-  public PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values
+  public PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, get_PEST_surface_data
 
   private
 
@@ -23,14 +23,14 @@ module pest_object
     real(dp), allocatable :: s0
 
     ! The rotational transform iota
-    real(dp) :: iota
+    real(dp), dimension(:), allocatable :: iota
 
     ! Safety factor q = 1/iota
-    real(dp) :: safety_factor_q
+    real(dp), dimension(:), allocatable :: safety_factor_q
 
     ! Magnetic shear shat = (x/q) * (d q / d x) where x = Aminor_p * sqrt(psi_toroidal / psi_{toroidal,edge})
     ! and Aminor_p is the minor radius calculated by VMEC.
-    real(dp) :: shat
+    real(dp), dimension(:), allocatable :: shat
 
     ! L_ref is the reference length used for gs2's normalization, in meters.
     real(dp) :: L_ref
@@ -51,17 +51,25 @@ module pest_object
     integer :: ix11, ix12, ix21, ix22, ix31, ix32
 
     ! On exit, s holds the grid points in the first coordinate (flux surface label)
-    ! Typically, this is psi_t = normalized_toroidal_flux
-    real(dp), dimension(:), allocatable :: x1(:)
+    ! in units of normalized flux
+    ! Typically, this is x1 = s = psi_toroidal/psi_edge 
+    real(dp), dimension(:), allocatable :: x1
 
     ! On exit, alpha holds the grid points in the second coordinate (field line label)
     ! Typically, this is alpha = theta_p - iota * zeta, where zeta is the PEST (geometric) toroidal angle
     ! and theta_p is the PEST poloidal angle
-    real(dp), dimension(:), allocatable :: x2(:)
+    real(dp), dimension(:), allocatable :: x2
 
     ! On exit, zeta holds the grid points in the third coordinate (field line following coordinate)
     ! Typically, this is zeta = zeta, where zeta is the PEST (geometric) toroidal angle
-    real(dp), dimension(:), allocatable :: x3(:)
+    real(dp), dimension(:,:), allocatable :: x3
+
+    ! VMEC supplies the normalized toroidal flux, thus it is natural to use the
+    ! toroidal zeta coordinate as the angle parameterizing the field line.
+    ! However some codes use the poloidal angle theta, related to zeta by theta =
+    ! iota*zeta.  The maximum extent of the flux tube and the coordinate used in
+    ! output can be chosen to be either theta or zeta, but the calculation itself
+    ! is performed using the zeta coordinate
 
     character(len=5) :: x3_coord
 
@@ -91,57 +99,7 @@ module pest_object
     module procedure create_from_VMEC_Obj
     module procedure create_from_VMEC_file
   end interface
-      
- 
-!    real(dp), pointer :: gds2(:,:) ! Metric element gss
-!    real(dp), pointer :: gds21(:,:) ! Metric element gsa
-!    real(dp), pointer :: gdsaa(:,:) ! Metric element gaa
-!    real(dp), pointer :: gbdrift(:,:) ! grad B drift in s
-!    real(dp), pointer :: gbdrift0(:,:) ! grad B drift in a
-!    real(dp), pointer :: cvdrift(:,:) ! curv drift in s
-!    real(dp), pointer :: cvdrift0(:,:) ! curv drift in a
-!    real(dp), pointer :: jac_gist_inv(:,:) ! jacobian
-!    real(dp), pointer :: d_B_d_par(:,:) ! parallel derivative of B
-!
-!
-!
-!  public :: dp, s0, safety_factor_q, shat, L_ref, B_ref, &
-!    & alpha, zeta, bmag, gradpar, gds2, gds21, gdsaa, &
-!    & gbdrift, gbdrift0, cvdrift, cvdrift0, jac_gist_inv, d_B_d_par, verbose
-!
-!  !*********************************************************************
-!  ! Input quantities
-!  !*********************************************************************
-!  ! If verbose is .true., lots of diagnostic information is printed.
-!  logical :: verbose, test
-!
-!  ! VMEC supplies the normalized toroidal flux, thus it is natural to use the
-!  ! toroidal zeta coordinate as the angle parameterizing the field line.
-!  ! However some codes use the poloidal angle theta, related to zeta by theta =
-!  ! iota*zeta.  The maximum extent of the flux tube and the coordinate used in
-!  ! output can be chosen to be either theta or zeta, but the calculation itself
-!  ! is performed using the zeta coordinate
-!  !character(len=5) :: zcoord 
-!  !*********************************************************************
-!  ! Output quantities
-!  !*********************************************************************
-!
-!  ! Arrays that contain the geometric elements along field lines
-!  real(dp), dimension(:,:), allocatable :: bmag  ! Magnitude of B
-!  real(dp), dimension(:,:), allocatable :: gradpar ! Grad parallel
-!  real(dp), dimension(:,:), allocatable :: gds2 ! Metric element gss
-!  real(dp), dimension(:,:), allocatable :: gds21 ! Metric element gsa
-!  real(dp), dimension(:,:), allocatable :: gdsaa ! Metric element gaa
-!  real(dp), dimension(:,:), allocatable :: gbdrift ! grad B drift in s
-!  real(dp), dimension(:,:), allocatable :: gbdrift0 ! grad B drift in a
-!  real(dp), dimension(:,:), allocatable :: cvdrift ! curv drift in s
-!  real(dp), dimension(:,:), allocatable :: cvdrift0 ! curv drift in a
-!  real(dp), dimension(:,:), allocatable :: jac_gist_inv ! jacobian
-!  real(dp), dimension(:,:), allocatable :: d_B_d_par ! parallel derivative of B
-!
-!  ! Surface quantities
-!  real(dp), dimension(:,:), allocatable :: Rsurf ! R coordinate as a function of straight field line angles
-!  real(dp), dimension(:,:), allocatable :: Zsurf ! Z coordinate as a function of straight field line angles
+
 contains
 
   type(PEST_Obj) function create_from_VMEC_Obj(vmec,surfaces,n_field_lines,n_parallel_pts) result(pest)
@@ -150,7 +108,17 @@ contains
     real(dp), dimension(:), intent(in) :: surfaces
     integer :: j, nsurf
     logical :: verbose
-    nsurf = size(surfaces)
+
+    j = 0
+    do while (surfaces(j+1) .gt. 1e-8)
+      j = j+1
+    end do
+
+    if (j .eq. 0) then
+      print *, "Error! Cannot compute a surface at s = 0"
+      stop
+    end if 
+    nsurf = j
 
     pest%vmec = vmec
     pest%nx1 = nsurf
@@ -163,6 +131,10 @@ contains
     pest%ix22 = n_field_lines-1
     pest%ix31 = -n_parallel_pts/2
     pest%ix32 = n_parallel_pts/2
+
+    if(allocated(pest%iota)) deallocate(pest%iota)
+    if(allocated(pest%shat)) deallocate(pest%shat)
+    if(allocated(pest%safety_factor_q)) deallocate(pest%safety_factor_q)
 
     if(allocated(pest%x1)) deallocate(pest%x1)
     if(allocated(pest%x2)) deallocate(pest%x2)
@@ -184,9 +156,12 @@ contains
     if(allocated(pest%Zsurf)) deallocate(pest%Zsurf)
     if(allocated(pest%d_Lambda_d_theta_vmec)) deallocate(pest%d_Lambda_d_theta_vmec)
 
+    allocate(pest%iota(pest%ix11:pest%ix12))
+    allocate(pest%shat(pest%ix11:pest%ix12))
+    allocate(pest%safety_factor_q(pest%ix11:pest%ix12))
     allocate(pest%x1(pest%ix11:pest%ix12))
     allocate(pest%x2(pest%ix21:pest%ix22))
-    allocate(pest%x3(pest%ix31:pest%ix32))
+    allocate(pest%x3(pest%ix31:pest%ix32,pest%ix11:pest%ix12))
     allocate(pest%bmag(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
     allocate(pest%jac(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
     allocate(pest%g11(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
@@ -204,7 +179,7 @@ contains
     allocate(pest%Zsurf(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
     allocate(pest%d_Lambda_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
 
-    pest%x1 = surfaces
+    pest%x1(pest%ix11:pest%ix12) = surfaces(1:j)
   end function
 
   type(PEST_Obj) function create_from_VMEC_file(VMEC_file,surfaces,n_alpha,n_parallel) result(pest)
@@ -250,6 +225,9 @@ contains
     type(PEST_Obj), intent(inout) :: pest
     
     call destroy_VMEC_Obj(pest%vmec)
+    deallocate(pest%iota)
+    deallocate(pest%shat)
+    deallocate(pest%safety_factor_q)
     deallocate(pest%x1)
     deallocate(pest%x2)
     deallocate(pest%x3)
@@ -270,5 +248,39 @@ contains
     deallocate(pest%Zsurf)
     deallocate(pest%d_Lambda_d_theta_vmec)
   end subroutine
+
+  subroutine get_PEST_surface_data(pest,idx1,data_name,surf_data)
+    type(PEST_Obj), intent(in) :: pest
+    integer, intent(in) :: idx1
+    character(len=32), intent(in) :: data_name
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32), intent(out) :: surf_data
+
+    select case(trim(data_name))
+      case('g11')
+        surf_data = pest%g11(:,:,idx1)
+      case('g12')
+        surf_data = pest%g12(:,:,idx1)
+      case('g22')
+        surf_data = pest%g22(:,:,idx1)
+      case('g13')
+        surf_data = pest%g13(:,:,idx1)
+      case('g23')
+        surf_data = pest%g23(:,:,idx1)
+      case('g33')
+        surf_data = pest%g33(:,:,idx1)
+      case('bmag')
+        surf_data = pest%bmag(:,:,idx1)
+      case('jac')
+        surf_data = pest%jac(:,:,idx1)
+      case('curv_drift_x1')
+        surf_data = pest%curv_drift_x1(:,:,idx1)
+      case('curv_drift_x2')
+        surf_data = pest%curv_drift_x2(:,:,idx1)
+      case('d_B_d_x3')
+        surf_data = pest%d_B_d_x3(:,:,idx1)
+      case default
+        surf_data = pest%bmag(:,:,idx1)
+    end select
+  end subroutine 
 
 end module 
