@@ -11,6 +11,12 @@ OBJS_LINK := $(addprefix $(OBJS_DIR)/,$(OBJS_F90)) $(addprefix $(OBJS_DIR)/,$(OB
 
 INCS := -I$(OBJS_DIR) -J$(OBJS_DIR)
 
+# Define the NetCDF libraries here, if not already in the compiler search path
+NETCDF_F_DIR := /opt/gcc/netcdf-f-4.4.5
+NETCDF_C_DIR := /opt/gcc/netcdf-c-4.6.3
+BLAS_DIR := /opt/gcc/openblas-0.3.6
+
+
 #ifeq ($(NERSC_HOST),cori)
 # makefile for NERSC Edison and Cori
 # You must first load the cray-netcdf module and python module:
@@ -27,8 +33,8 @@ INCS := -I$(OBJS_DIR) -J$(OBJS_DIR)
   # Above, the link flag "-Wl,-ydgemm_" causes the linker to report which version of DGEMM (the BLAS3 matrix-matrix-multiplication subroutine) is used.
 #else
 FC := mpifort
-FCFLAGS := -O3 -march=skylake-avx512 -fopenmp -I/opt/gcc/netcdf-fortran-4.4.5/include -ffree-line-length-none
-LDFLAGS := -O3 -march=skylake-avx512 -fopenmp -lnetcdff -lnetcdf -lopenblas
+FCFLAGS := -O3 -march=skylake-avx512 -fopenmp -I$(NETCDF_F_DIR)/include -ffree-line-length-none
+LDFLAGS := -O3 -march=skylake-avx512 -fopenmp -L$(NETCDF_F_DIR)/lib -L$(NETCDF_C_DIR)/lib -L$(BLAS_DIR)/lib -lnetcdff -lnetcdf -lopenblas
 #endif
 # End of system-dependent variable assignments
 
