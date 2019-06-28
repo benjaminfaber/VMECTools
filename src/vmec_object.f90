@@ -1,3 +1,9 @@
+!*******************************************************************************
+! This module defines the VMEC object used in the vmec2pest calculation
+! Author: B.J. Faber - University of Wisconsin-Madison (bfaber@wisc.edu)
+! Creation date: June 2019
+!******************************************************************************
+
 module vmec_object
   use types, only: dp, pi
   implicit none

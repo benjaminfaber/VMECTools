@@ -1,5 +1,5 @@
-!*******************************************************************************
-! This module defines the public types used in the vmec2sfl calculation
+!******************************************************************************
+! This module defines the PEST object used in the vmec2pest calculation
 ! Author: B.J. Faber (bfaber@wisc.edu)
 ! Creation date: 30.08.2018
 !******************************************************************************

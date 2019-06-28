@@ -1,13 +1,15 @@
 ! This code is based off of the 
-! vmec2sfl.f90
+! full_surface_vmec_to_gs2.f90 code
 ! Written by Matt Landreman, University of Maryland
 ! Initial code written August 2017.
 
 
-! This code has been further modified by B.J. Faber to generalize to different
-! coordinate systems.  As such, some of the variable names have bene modified.
-! Skip down ~25 lines for detailed description of the input and output parameters.
-
+!******************************************************************************
+! This module contains the actual code to compute the VMEC to PEST
+! transformation 
+! Modified by: B.J. Faber University of Wisconsin-Madison (bfaber@wisc.edu)
+! Modification date: June 2019
+!******************************************************************************
 module compute_pest 
 
   use types, only: dp, pi, mu_0

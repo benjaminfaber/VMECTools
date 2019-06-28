@@ -1,3 +1,9 @@
+!******************************************************************************
+! This module defines normalizations for different simuation grid types
+! that are computed through the  vmec2pest calculation
+! Author: B.J. Faber (bfaber@wisc.edu)
+! Creation date: June 2019
+!******************************************************************************
 module normalizations
   use types, only: dp, pi
   use pest_object, only: PEST_Obj

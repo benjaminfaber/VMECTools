@@ -1,3 +1,10 @@
+!******************************************************************************
+! This is the top-level program to convert a VMEC equilibrium to a PEST
+! coordinate system.
+! Written by B.J. Faber, University of Wisconsin-Madison
+! Created June 2019
+!******************************************************************************
+
 program vmec2sfl
   use types, only: dp, pi
   use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, &

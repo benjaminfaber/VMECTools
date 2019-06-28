@@ -12,7 +12,7 @@ OBJS_LINK := $(addprefix $(OBJS_DIR)/,$(OBJS_F90)) $(addprefix $(OBJS_DIR)/,$(OB
 INCS := -I$(OBJS_DIR) -J$(OBJS_DIR)
 
 # Define the NetCDF libraries here, if not already in the compiler search path
-NETCDF_F_DIR := /opt/gcc/netcdf-f-4.4.5
+NETCDF_F_DIR := /opt/gcc/netcdf-fortran-4.4.5
 NETCDF_C_DIR := /opt/gcc/netcdf-c-4.6.3
 BLAS_DIR := /opt/gcc/openblas-0.3.6
 

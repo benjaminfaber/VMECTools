@@ -1,3 +1,9 @@
+!*******************************************************************************
+! This module defines the I/O routines used in the vmec2pest calculation
+! Author: B.J. Faber (bfaber@wisc.edu)
+! Creation date: 30.08.2018
+!******************************************************************************
+
 module io_core
   use types, only: dp, pi
   use pest_object, only: PEST_Obj
