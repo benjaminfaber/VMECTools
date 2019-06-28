@@ -8,34 +8,37 @@
 program vmec2sfl
   use types, only: dp, pi
   use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, &
-    & get_PEST_surface_data
-  use io_core, only: read_input, write_pest_file, geom_file, surfaces, surf_opt, &
+    & get_PEST_data
+  use io_core, only: read_vmec2pest_input, write_pest_file, geom_file, surfaces, surf_opt, &
     & x3_center, n_field_lines, n_parallel_pts, n_field_periods, x3_coord, norm_type, output_files, &
     & write_gene_geometry_file, write_cylindrical_surface, surface_quantities, n_surface_quantities, &
-    & write_surface_quantity
+    & write_surface_quantity_cyl, write_surface_quantity_xyz
   use compute_pest, only: compute_pest_geometry
-  use normalizations, only: gene_normalizations
+  use normalizations, only: set_normalizations
   implicit none
 
   real(dp), parameter :: pi2 = pi*pi
   integer :: i, j
   character(len=2000) :: infile
+  character(len=8) :: grid_type
 
   real(dp) :: time1, time2
+  !real(dp), dimension(:), allocatable :: line_data
   real(dp), dimension(:,:), allocatable :: surf_data
+  !real(dp), dimension(:,:,:), allocatable :: vol_data
  
   type(PEST_Obj) :: pest
 
   call cpu_time(time1)
   infile = 'vmec2pest.inp'
-  call read_input(infile)
+  call read_vmec2pest_input(infile)
   pest = create_PEST_Obj(geom_file,surfaces,n_field_lines,n_parallel_pts)
 print *, surface_quantities
   call set_PEST_reference_values(pest,norm_type)
   pest%x3_coord = x3_coord
-  allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
   call compute_pest_geometry(pest,x3_center,n_field_periods,surf_opt)
-  call gene_normalizations(pest) 
+  grid_type = 'gene'
+  call set_normalizations(pest,grid_type) 
   do i=1,4 
     select case (trim(output_files(i)))
       case('pest')
@@ -57,13 +60,27 @@ print *, surface_quantities
     end select 
   end do
   if (n_surface_quantities .gt. 0) then
+    allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
     do i=1,n_surface_quantities
       do j=pest%ix11,pest%ix12
-        call get_PEST_surface_data(pest,j,surface_quantities(i),surf_data)
-        call write_surface_quantity(pest,j,pest%nx2,pest%nx3,surface_quantities(i),surf_data)
+        call get_PEST_data(pest,j,surface_quantities(i),surf_data)
+        call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
+        call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
       end do
     end do
+    deallocate(surf_data)
   end if 
+!  if (n_volume_quantities .gt. 0) then
+!    allocate(vol_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+!    do i=1,n_surface_quantities
+!      do j=pest%ix11,pest%ix12
+!        call get_PEST_data(pest,j,surface_quantities(i),vol_data)
+!        call write_surface_quantity(pest,j,surface_quantities(i),vol_data)
+!      end do
+!    end do
+!    deallocate(vol_data)
+!  end if
+
   call destroy_PEST_Obj(pest)
   call cpu_time(time2)
   write(6,"(A,F8.4,A)") "vmec2sfl completed in ",time2-time1," seconds"

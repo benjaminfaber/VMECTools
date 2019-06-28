@@ -8,6 +8,7 @@ objs/pest_object.o: objs/vmec_object.mod objs/types.mod
 objs/compute_pest.o: objs/types.mod objs/pest_object.mod objs/io_core.mod
 objs/vmec2pest.o: objs/pest_object.mod objs/io_core.mod objs/compute_pest.mod objs/normalizations.mod
 objs/normalizations.o: objs/pest_object.mod objs/types.mod
+objs/interfaces.o: objs/types.mod objs/pest_object.mod objs/compute_pest.mod objs/normalizations.mod
 
 objs/fzero.mod: objs/fzero.o
 objs/types.mod: objs/types.o 
@@ -16,3 +17,4 @@ objs/pest_object.mod: objs/pest_object.o
 objs/io_core.mod: objs/io_core.o
 objs/compute_pest.mod: objs/compute_pest.o
 objs/normalizations.mod: objs/normalizations.o
+objs/interfaces.mod: objs/interfaces.o

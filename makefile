@@ -51,8 +51,10 @@ LIBSTELL_DIR := mini_libstell
 LIBSTELL := $(LIBSTELL_DIR)/mini_libstell.a
 
 VMEC2PEST := vmec2pest
+VMECTOOLSLIB := $(addprefix lib/,libvmectools.a)
 all: v2p
 v2p: libstell $(VMEC2PEST)
+lib: $(VMECTOOLSLIB)
 #libstell: $(LIBSTELL)
 
 export
@@ -67,6 +69,9 @@ $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f
 
 $(VMEC2PEST): $(OBJS_LINK)
 	@$(FC) -o $@ $^ $(LIBSTELL) $(LDFLAGS)
+
+$(VMECTOOLSLIB): $(OBJS_LINK)
+	ar crs $@ $^
 
 #$(LIBSTELL):
 libstell:

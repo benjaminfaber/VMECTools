@@ -9,10 +9,23 @@ module normalizations
   use pest_object, only: PEST_Obj
   implicit none
 
-  public gene_normalizations, gs2_normalizations
+  public set_normalizations
 
 contains
-  
+ 
+  subroutine set_normalizations(pest,grid_type)
+    type(PEST_Obj), intent(inout) :: pest
+    character(len=8), intent(in) :: grid_type
+    select case(trim(grid_type))
+      case('gene')
+        call gene_normalizations(pest)
+      case('gs2')
+        call gs2_normalizations(pest)
+      case default
+        call gene_normalizations(pest)
+    end select
+  end subroutine
+ 
   subroutine gene_normalizations(pest)
     type(PEST_Obj), intent(inout) :: pest
     integer :: idx1, idx2, idx3

@@ -9,18 +9,13 @@ module pest_object
   use vmec_object, only: VMEC_Obj, create_VMEC_Obj, destroy_VMEC_Obj
   implicit none
 
-  public PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, get_PEST_surface_data
+  public PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, get_PEST_data
 
   private
 
   type :: PEST_Obj
     ! Pointer to the VMEC equilibrium
     type(VMEC_Obj) :: vmec
-
-    ! List of all the calculated quantities
-    ! On exit, s0 holds the flux surface that was actually used for the geometry,
-    ! as measured by psi_toroidal / psi_{toroidal,edge}
-    real(dp), allocatable :: s0
 
     ! The rotational transform iota
     real(dp), dimension(:), allocatable :: iota
@@ -98,6 +93,12 @@ module pest_object
   interface create_PEST_Obj
     module procedure create_from_VMEC_Obj
     module procedure create_from_VMEC_file
+  end interface
+
+  interface get_PEST_data
+    module procedure get_PEST_field_line_data
+    module procedure get_PEST_surface_data
+    module procedure get_PEST_volume_data
   end interface
 
 contains
@@ -283,4 +284,70 @@ contains
     end select
   end subroutine 
 
+  subroutine get_PEST_volume_data(pest,data_name,vol_data)
+    type(PEST_Obj), intent(in) :: pest
+    character(len=32), intent(in) :: data_name
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12), intent(out) :: vol_data 
+
+    select case(trim(data_name))
+      case('g11')
+        vol_data = pest%g11
+      case('g12')
+        vol_data = pest%g12
+      case('g22')
+        vol_data = pest%g22
+      case('g13')
+        vol_data = pest%g13
+      case('g23')
+        vol_data = pest%g23
+      case('g33')
+        vol_data = pest%g33
+      case('bmag')
+        vol_data = pest%bmag
+      case('jac')
+        vol_data = pest%jac
+      case('curv_drift_x1')
+        vol_data = pest%curv_drift_x1
+      case('curv_drift_x2')
+        vol_data = pest%curv_drift_x2
+      case('d_B_d_x3')
+        vol_data = pest%d_B_d_x3
+      case default
+        vol_data = pest%bmag
+    end select
+  end subroutine
+
+  subroutine get_PEST_field_line_data(pest,idx1,idx2,data_name,line_data)
+    type(PEST_Obj), intent(in) :: pest
+    integer, intent(in) :: idx1, idx2
+    character(len=32), intent(in) :: data_name
+    real(dp), dimension(pest%ix31:pest%ix32), intent(out) :: line_data
+
+    select case(trim(data_name))
+      case('g11')
+        line_data = pest%g11(idx2,:,idx1)
+      case('g12')
+        line_data = pest%g12(idx2,:,idx1)
+      case('g22')
+        line_data = pest%g22(idx2,:,idx1)
+      case('g13')
+        line_data = pest%g13(idx2,:,idx1)
+      case('g23')
+        line_data = pest%g23(idx2,:,idx1)
+      case('g33')
+        line_data = pest%g33(idx2,:,idx1)
+      case('bmag')
+        line_data = pest%bmag(idx2,:,idx1)
+      case('jac')
+        line_data = pest%jac(idx2,:,idx1)
+      case('curv_drift_x1')
+        line_data = pest%curv_drift_x1(idx2,:,idx1)
+      case('curv_drift_x2')
+        line_data = pest%curv_drift_x2(idx2,:,idx1)
+      case('d_B_d_x3')
+        line_data = pest%d_B_d_x3(idx2,:,idx1)
+      case default
+        line_data = pest%bmag(idx2,:,idx1)
+    end select
+  end subroutine
 end module 

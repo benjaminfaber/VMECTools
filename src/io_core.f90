@@ -9,8 +9,8 @@ module io_core
   use pest_object, only: PEST_Obj
   implicit none
 
-  public:: read_input, write_pest_file, write_cylindrical_surface, write_RZ_theta_zeta_grid, &
-    & write_gene_geometry_file, write_surface_quantity
+  public:: read_vmec2pest_input, write_pest_file, write_cylindrical_surface, write_RZ_theta_zeta_grid, &
+    & write_gene_geometry_file, write_surface_quantity_cyl, write_surface_quantity_xyz
   public:: tag, geom_file, outdir, x3_coord, norm_type, &
     & n_field_lines, n_parallel_pts, x3_center, &
     & n_field_periods, surfaces, surf_opt, verbose, test, &
@@ -29,7 +29,7 @@ module io_core
 
 contains
   
-  subroutine read_input(filename)
+  subroutine read_vmec2pest_input(filename)
     ! Reads the parameters from the input file
     implicit none
     character(len=256), intent(in) :: filename
@@ -70,7 +70,7 @@ print *, len(trim(surface_quantities(j+1)))
 
     n_surface_quantities = j
 
-  end subroutine read_input
+  end subroutine
 
   subroutine write_pest_file(pest,idx1)
     implicit none
@@ -174,9 +174,9 @@ print *, len(trim(surface_quantities(j+1)))
     close(iunit_cyl)
   end subroutine
 
-  subroutine write_surface_quantity(pest,idx1,dim_1,dim_2,data_name,surf_data)
+  subroutine write_surface_quantity_cyl(pest,idx1,data_name,surf_data)
     type(PEST_Obj), intent(in) :: pest
-    integer, intent(in) :: idx1, dim_1, dim_2
+    integer, intent(in) :: idx1
     character(len=32), intent(in) :: data_name
     real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32), intent(in) :: surf_data
     integer :: j, k, iunit_cyl
@@ -210,6 +210,43 @@ print *, len(trim(surface_quantities(j+1)))
       write (iunit_cyl,'(4(F12.7,2x))') pest%Rsurf(pest%ix21,k,idx1), pest%Zsurf(pest%ix21,k,idx1), -prefac*pest%x3(k,idx1), surf_data(pest%ix21,k)
     end do
     close(iunit_cyl)
+  end subroutine
+
+  subroutine write_surface_quantity_xyz(pest,idx1,data_name,surf_data)
+    type(PEST_Obj), intent(in) :: pest
+    integer, intent(in) :: idx1
+    character(len=32), intent(in) :: data_name
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32), intent(in) :: surf_data
+    integer :: j, k, iunit_xyz
+    real(dp) :: prefac
+    character(len=2000) :: filename_xyz, filenumber
+    write(filenumber,"(I0.3)") idx1
+
+    prefac = 1.0
+    if (trim(pest%x3_coord) .eq. 'theta') then
+      prefac = pest%safety_factor_q(idx1)
+    end if
+
+    filename_xyz = trim(outdir)//"xyz_surface_"//trim(tag)//"_"//trim(data_name)//"_surf_"//trim(filenumber)//".dat"
+    open(file=trim(filename_xyz),newunit=iunit_xyz)
+    write (iunit_xyz,'(A)') '&parameters'
+    write (iunit_xyz,'(A,F12.7)') '!s0 = ', pest%x1(idx1) 
+    write (iunit_xyz,'(A,F12.7)') '!minor_r = ', pest%minor_r
+    write (iunit_xyz,'(A,F12.7)') '!major_R = ', pest%major_R
+    write (iunit_xyz,'(A,F12.7)') '!Bref = ', pest%B_ref
+    write (iunit_xyz,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
+    write (iunit_xyz,'(A,F12.7)') 'shat = ', pest%shat(idx1)
+    write (iunit_xyz,'(A)') '/'
+    write (iunit_xyz,'(3(A12))') '# R', 'Z', 'Phi'
+
+    do k=pest%ix31,pest%ix32-1
+      do j=pest%ix21,pest%ix22
+        write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
+      end do
+      write (iunit_xyz,'(A)') " "
+      
+    end do
+    close(iunit_xyz)
   end subroutine
 
   subroutine write_RZ_theta_zeta_grid(pest,idx1,nfpi)
