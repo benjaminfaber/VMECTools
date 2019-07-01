@@ -33,7 +33,6 @@ program vmec2sfl
   infile = 'vmec2pest.inp'
   call read_vmec2pest_input(infile)
   pest = create_PEST_Obj(geom_file,surfaces,n_field_lines,n_parallel_pts)
-print *, surface_quantities
   call set_PEST_reference_values(pest,norm_type)
   pest%x3_coord = x3_coord
   call compute_pest_geometry(pest,x3_center,n_field_periods,surf_opt)
