@@ -253,8 +253,11 @@ contains
   subroutine get_PEST_surface_data(pest,idx1,data_name,surf_data)
     type(PEST_Obj), intent(in) :: pest
     integer, intent(in) :: idx1
-    character(len=32), intent(in) :: data_name
+    character(*), intent(in) :: data_name
     real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32), intent(out) :: surf_data
+    integer :: str_len
+
+print *, data_name
 
     select case(trim(data_name))
       case('g11')
@@ -322,6 +325,8 @@ contains
     integer, intent(in) :: idx1, idx2
     character(len=32), intent(in) :: data_name
     real(dp), dimension(pest%ix31:pest%ix32), intent(out) :: line_data
+
+print *, trim(data_name)
 
     select case(trim(data_name))
       case('g11')

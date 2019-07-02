@@ -64,10 +64,10 @@ contains
     real(dp) :: dphi
     logical :: verbose
 
-    verbose = .false.
+    verbose = .true.
 
     if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_file)
-    call read_wout_file(VMEC_file, ierr, iopen)
+    call read_wout_file(trim(VMEC_file), ierr, iopen)
     if (iopen .ne. 0) stop 'error opening wout file'
     if (ierr .ne. 0) stop 'error reading wout file'
     if (verbose) print *,"  Successfully read VMEC data from ",trim(VMEC_file)

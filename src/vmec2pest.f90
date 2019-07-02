@@ -62,9 +62,9 @@ program vmec2sfl
     allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
     do i=1,n_surface_quantities
       do j=pest%ix11,pest%ix12
-        call get_PEST_data(pest,j,surface_quantities(i),surf_data)
-        call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
-        call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
+!        call get_PEST_data(pest,j,surface_quantities(i),surf_data)
+!        call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
+!        call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
       end do
     end do
     deallocate(surf_data)
