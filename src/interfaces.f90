@@ -6,48 +6,91 @@
 !******************************************************************************
 
 module interfaces
+  use, intrinsic :: iso_c_binding
   use types, only: dp
   use pest_object, only: PEST_Obj, create_PEST_Obj, set_PEST_reference_values, get_PEST_data
   use compute_pest, only: compute_pest_geometry
   use normalizations, only: set_normalizations 
   implicit none
 
-  public :: pest2vmec_c_interface, pest2vmec_stellopt_interface
+  public :: pest2vmec_c_interface, pest2vmec_stellopt_interface, pest2vmec_setup_interface
 
   private
     type(PEST_Obj) :: pest ! Make this pest_object shared within the module so data can be read using get_PEST_data
+
+    type, bind(C) :: vmec2pest_options
+      ! Currently this must be a NetCDF file
+      type(c_ptr) :: geom_file
+      type(c_ptr) :: grid_type
+      type(c_ptr) :: x3_coord
+      type(c_ptr) :: norm_type
+      integer(c_int) :: nx1, nx2, nx3
+      type(c_ptr) :: x1
+      real(c_double) :: x3_center, nfpi
+    end type
+
+  interface c2f
+    module procedure c2f_string_array_1d
+    module procedure c2f_real_array_1d
+  end interface 
+
+  interface pest2vmec_setup_interface
+    module procedure pest2vmec_setup_c_interface
+  end interface
+
 contains
+  !****************************************************************************
+  ! Interface to set up pest2vmec from C/C++
+  !****************************************************************************
+  subroutine pest2vmec_setup_c_interface(options) bind(C,name='pest2vmec_setup_c_interface')
+    use, intrinsic :: iso_c_binding
+    type(vmec2pest_options) :: options
+    character, dimension(:), allocatable :: geom_file
+    real(c_double), dimension(:), allocatable :: surfaces
+    real(dp) :: x
+    real(c_double) :: y
+
+print *, precision(x), range(x)
+print *, precision(real(c_double)), range(y)
+    call c2f(options%geom_file,geom_file)
+    print *, geom_file
+    call c2f(options%x1,surfaces)
+    print *, surfaces
+
+    deallocate(geom_file,surfaces)
+   
+  end subroutine
 
   !****************************************************************************
   ! Interface to call pest2vmec from C/C++
   !****************************************************************************
-  subroutine pest2vmec_c_interface(nx1,nx2,nx3,nfpi,x1,vmec_file,ncvf,grid_type,ncgt) bind(C,name='pest2vmec_c_interface')
+  subroutine pest2vmec_c_interface(nx1,nx2,nx3,nfpi,x1,vmec_file,grid_type) bind(C,name='pest2vmec_c_interface')
     use, intrinsic :: iso_c_binding
-    integer(c_int), intent(in) :: nx1, nx2, nx3, ncvf, ncgt
+    integer(c_int), intent(in) :: nx1, nx2, nx3
     real(c_double), intent(in) :: nfpi
     real(c_double), dimension(nx1) :: x1 
-    character(c_char), dimension(ncvf), intent(in) :: vmec_file
-    character(c_char), dimension(ncgt), intent(in) :: grid_type
-    character(len=2000) :: vmec_string
-    character(len=8) :: grid_string
+    type(c_ptr), target :: vmec_file
+    type(c_ptr), target :: grid_type
+    character(len=2000), pointer :: vmec_ptr
+    character(len=2000), pointer :: grid_ptr
+    character(len=2000), target :: vmec_string
+    character(len=2000), target :: grid_string
     character(len=7) :: norm_type
     character(len=5) :: x3_coord
-    integer :: i, surf_opt
+    integer :: i, surf_opt, str_len
     surf_opt = 0
 
 print *, nx1, nx2, nx3, nfpi
 print *, x1
-print *, grid_type(1:4)
-    vmec_string = ""
-    do i = 1,ncvf
-      vmec_string = trim(vmec_string)//trim(vmec_file(i))
-    end do
-print *, trim(vmec_string)
+    call c_f_pointer(c_loc(vmec_file),vmec_ptr)
+    str_len = index(vmec_ptr,c_null_char)
+    vmec_string = trim(vmec_ptr(1:str_len))
+    print *, trim(vmec_string)
 
-    grid_string = ""
-    do i = 1,ncgt
-      grid_string = trim(grid_string)//trim(grid_type(i))
-    end do
+    call c_f_pointer(c_loc(grid_type),grid_ptr)
+    str_len = index(grid_ptr,c_null_char)
+    grid_string = trim(grid_ptr(1:str_len))
+    print *, trim(grid_string)
 
     pest = create_PEST_Obj(trim(vmec_string),x1,nx2,nx3)
     if (trim(grid_string) .eq. "tok") then 
@@ -65,9 +108,9 @@ print *, pest%g11(pest%ix21,:,pest%ix11)
     
   end subroutine
 
-  subroutine get_pest_data_c_interface(x1,x2,data_name,ncdn,n_dims,data_size,c_data) bind(C)
+  subroutine get_pest_data_c_interface(x1,x2,data_name,n_dims,data_size,c_data) bind(C,name="get_pest_data_c_interface")
     use, intrinsic :: iso_c_binding
-    integer(c_int), intent(in) :: n_dims, data_size, x1, x2, ncdn
+    integer(c_int), intent(in) :: n_dims, data_size, x1, x2
     !character, dimension(*) :: data_name
     type(c_ptr), target :: data_name
     real(c_double), dimension(data_size), intent(out) :: c_data
@@ -95,13 +138,13 @@ print *, trim(temp)
 
     select case(n_dims)
       case(1)
-print *, data_string
+print *, trim(temp)
         if (data_size .ne. pest%nx3) then
           print *, "Error! C array does not have the same size as ",pest%nx3,"!"
           stop
         end if
         allocate(line_data(pest%ix31:pest%ix32))
-        call get_PEST_data(pest,x1,x2,trim(data_string),line_data)
+        call get_PEST_data(pest,x1,x2,trim(temp),line_data)
         do idx3 = pest%ix31,pest%ix32
           idx = idx3 - pest%ix31 + 1
 print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest%L_ref
@@ -146,6 +189,58 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
 
   end subroutine
 
+  subroutine c2f_string_array_1d(c_pointer,f_string)
+    use, intrinsic :: iso_c_binding
+    type(c_ptr), intent(in) :: c_pointer
+    character, dimension(:), allocatable :: f_string
+    character, dimension(:), pointer :: f_pointer
+
+    integer :: i
+    logical :: null_char_found
+    i = 0
+    null_char_found = .false.
+    do while (null_char_found .eqv. .false.)
+      i = i + 1
+      call c_f_pointer(c_pointer,f_pointer,[i])
+      if (f_pointer(i) == c_null_char) then
+        null_char_found = .true.
+      end if
+    end do
+    i = i - 1
+    
+    allocate(f_string(i))
+    f_string = f_pointer(1:i)
+
+  end subroutine
+
+  subroutine c2f_real_array_1d(c_pointer,f_real)
+    use, intrinsic :: iso_c_binding
+    type(c_ptr), intent(in) :: c_pointer
+    real(dp), dimension(:), allocatable :: f_real
+    real(c_double), dimension(:), pointer :: f_pointer
+
+    integer :: i, j
+    logical :: end_reached
+    
+    call c_f_pointer(c_pointer,f_pointer,[2])
+    print *,f_pointer
+    i = 1
+!
+!    end_reached = .false.
+!    do while (end_reached .eqv. .false.)
+!      i = i+1
+!      call c_f_pointer(c_pointer,f_pointer,[i])
+!      do j = 1,i
+!        print *, f_pointer(i)
+!      end do
+!      if (i .ge. 5) then
+!        end_reached = .true.
+!      end if
+!    end do
+!
+    allocate(f_real(i))
+  end subroutine
+ 
   subroutine pest2vmec_stellopt_interface
   end subroutine
 

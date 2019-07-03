@@ -5,7 +5,7 @@
 !******************************************************************************
 
 module types
-
+  use, intrinsic :: iso_c_binding
   implicit none
 
   public dp, pi, zero, one, mu_0
@@ -13,11 +13,10 @@ module types
   private
 
   !integer, parameter :: dp = kind(0.0d0)
-  integer, parameter :: dp = selected_real_kind(15,300)
+  integer, parameter :: dp = selected_real_kind(precision(real(c_double)),range(real(c_double)))
   real(dp), parameter :: pi = 3.1415926535897932846264338327950d+0
   real(dp), parameter :: zero = 0.0d0
   real(dp), parameter :: one = 1.0d0
   real(dp), parameter :: mu_0 = 4*pi*(1.0d-7)
-
 
 end module 

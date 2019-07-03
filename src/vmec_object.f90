@@ -57,20 +57,24 @@ module vmec_object
 
 contains
 
-  type(VMEC_Obj) function create_VMEC_Obj(VMEC_file) result(vmec)
+  type(VMEC_Obj) function create_VMEC_Obj(VMEC_id) result(vmec)
     use read_wout_mod
-    character(len=2000), intent(in) :: VMEC_file
+    character(len=2000), intent(in) :: VMEC_id
     integer :: ierr, iopen, j
     real(dp) :: dphi
     logical :: verbose
 
-    verbose = .true.
+    verbose = .false.
 
-    if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_file)
-    call read_wout_file(trim(VMEC_file), ierr, iopen)
-    if (iopen .ne. 0) stop 'error opening wout file'
-    if (ierr .ne. 0) stop 'error reading wout file'
-    if (verbose) print *,"  Successfully read VMEC data from ",trim(VMEC_file)
+    ! If we are reading a file, then we are running outside the scope of STELLOPT,
+    ! which supplies the read_wout_mod module
+    if (trim(VMEC_id) .ne. "") then
+      if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_id)
+      call read_wout_file(trim(VMEC_id), ierr, iopen)
+      if (iopen .ne. 0) stop 'error opening wout file'
+      if (ierr .ne. 0) stop 'error reading wout file'
+      if (verbose) print *,"  Successfully read VMEC data from ",trim(VMEC_id)
+    end if
 
     if (verbose) print *,"  Number of field periods (nfp):",nfp
     if (verbose) print *,"  Stellarator-asymmetric? (lasym):",lasym

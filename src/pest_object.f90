@@ -289,7 +289,7 @@ print *, data_name
 
   subroutine get_PEST_volume_data(pest,data_name,vol_data)
     type(PEST_Obj), intent(in) :: pest
-    character(len=32), intent(in) :: data_name
+    character(*), intent(in) :: data_name
     real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12), intent(out) :: vol_data 
 
     select case(trim(data_name))
@@ -323,7 +323,7 @@ print *, data_name
   subroutine get_PEST_field_line_data(pest,idx1,idx2,data_name,line_data)
     type(PEST_Obj), intent(in) :: pest
     integer, intent(in) :: idx1, idx2
-    character(len=32), intent(in) :: data_name
+    character(*), intent(in) :: data_name
     real(dp), dimension(pest%ix31:pest%ix32), intent(out) :: line_data
 
 print *, trim(data_name)
