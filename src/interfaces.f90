@@ -50,8 +50,8 @@ contains
     real(dp) :: x
     real(c_double) :: y
 
-print *, precision(x), range(x)
-print *, precision(real(c_double)), range(y)
+print *, c_sizeof(options%geom_file)
+print *, c_sizeof(options%x1)
     call c2f(options%geom_file,geom_file)
     print *, geom_file
     call c2f(options%x1,surfaces)
@@ -222,7 +222,7 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
     integer :: i, j
     logical :: end_reached
     
-    call c_f_pointer(c_pointer,f_pointer,[2])
+    call c_f_pointer(c_pointer,f_pointer,[3])
     print *,f_pointer
     i = 1
 !
