@@ -14,10 +14,12 @@ module io_core
   public:: tag, geom_file, outdir, x3_coord, norm_type, &
     & n_field_lines, n_parallel_pts, x3_center, &
     & n_field_periods, surfaces, surf_opt, verbose, test, &
-    & output_files, surface_quantities, n_surface_quantities
+    & output_files, surface_quantities, n_surface_quantities, geom_id
 
   private 
-    character(len=2000) :: tag, geom_file, outdir
+    character(len=:), pointer :: geom_id
+    character(len=2000), target :: geom_file
+    character(len=2000) :: tag, outdir
     character(len=5) :: x3_coord
     character(len=7) :: norm_type
     integer :: n_field_lines, n_parallel_pts, surf_opt, n_surface_quantities
@@ -33,6 +35,7 @@ contains
     ! Reads the parameters from the input file
     implicit none
     character(len=256), intent(in) :: filename
+    character(len=:), allocatable, target :: temp
     integer :: iunit, j
 
     namelist /parameters/ tag, geom_file, outdir, x3_coord, norm_type, &
@@ -69,6 +72,10 @@ print *, len(trim(surface_quantities(j+1)))
     end do
 
     n_surface_quantities = j
+print *, len(trim(geom_file))
+
+    geom_id => geom_file(1:len(trim(geom_file)))
+print *, geom_id
 
   end subroutine
 

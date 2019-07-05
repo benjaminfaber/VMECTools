@@ -18,3 +18,5 @@ objs/io_core.mod: objs/io_core.o
 objs/compute_pest.mod: objs/compute_pest.o
 objs/normalizations.mod: objs/normalizations.o
 objs/interfaces.mod: objs/interfaces.o
+
+objs/test.o:

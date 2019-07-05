@@ -91,8 +91,8 @@ module pest_object
 
 
   interface create_PEST_Obj
-    module procedure create_from_VMEC_Obj
-    module procedure create_from_VMEC_file
+    module procedure create_from_VMEC
+    module procedure create_from_field_line_file
   end interface
 
   interface get_PEST_data
@@ -103,12 +103,15 @@ module pest_object
 
 contains
 
-  type(PEST_Obj) function create_from_VMEC_Obj(vmec,surfaces,n_field_lines,n_parallel_pts) result(pest)
-    type(VMEC_Obj), intent(in) :: vmec
-    integer, intent(in) :: n_field_lines, n_parallel_pts
+  type(PEST_Obj) function create_from_VMEC(VMEC_id,surfaces,n_field_lines,n_parallel_pts) result(pest)
+    character(len=:), intent(in), pointer :: VMEC_id
     real(dp), dimension(:), intent(in) :: surfaces
+    integer, intent(in) :: n_field_lines, n_parallel_pts
     integer :: j, nsurf
     logical :: verbose
+
+    type(VMEC_Obj) :: vmec
+    vmec = create_VMEC_Obj(VMEC_id)
 
     j = 0
     do while (surfaces(j+1) .gt. 1e-8)
@@ -183,14 +186,9 @@ contains
     pest%x1(pest%ix11:pest%ix12) = surfaces(1:j)
   end function
 
-  type(PEST_Obj) function create_from_VMEC_file(VMEC_file,surfaces,n_alpha,n_parallel) result(pest)
-    character(len=2000), intent(in) :: VMEC_file
-    integer, intent(in) :: n_alpha, n_parallel
-    real(dp), dimension(:), intent(in) :: surfaces
-    type(VMEC_Obj) :: vmec
+  type(PEST_Obj) function create_from_field_line_file(fl_file) result(pest)
+    character(len=2000), intent(in) :: fl_file
 
-    vmec = create_VMEC_Obj(VMEC_file)
-    pest = create_from_VMEC_Obj(vmec,surfaces,n_alpha,n_parallel)
   end function
 
   subroutine set_PEST_reference_values(pest,norm_type)
@@ -256,8 +254,6 @@ contains
     character(*), intent(in) :: data_name
     real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32), intent(out) :: surf_data
     integer :: str_len
-
-print *, data_name
 
     select case(trim(data_name))
       case('g11')

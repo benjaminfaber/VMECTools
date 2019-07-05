@@ -59,21 +59,23 @@ contains
 
   type(VMEC_Obj) function create_VMEC_Obj(VMEC_id) result(vmec)
     use read_wout_mod
-    character(len=2000), intent(in) :: VMEC_id
+    character(len=:), pointer, intent(in) :: VMEC_id
+    character(len=2000) :: VMEC_file
     integer :: ierr, iopen, j
     real(dp) :: dphi
     logical :: verbose
 
-    verbose = .false.
+    verbose = .true.
 
     ! If we are reading a file, then we are running outside the scope of STELLOPT,
     ! which supplies the read_wout_mod module
-    if (trim(VMEC_id) .ne. "") then
-      if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_id)
-      call read_wout_file(trim(VMEC_id), ierr, iopen)
+    if (len(VMEC_id) .ge. 0) then
+      VMEC_file = VMEC_id(1:len(VMEC_id))
+      if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_file)
+!      call read_wout_file(VMEC_file, ierr, iopen)
       if (iopen .ne. 0) stop 'error opening wout file'
       if (ierr .ne. 0) stop 'error reading wout file'
-      if (verbose) print *,"  Successfully read VMEC data from ",trim(VMEC_id)
+      if (verbose) print *,"  Successfully read VMEC data from ",VMEC_file
     end if
 
     if (verbose) print *,"  Number of field periods (nfp):",nfp

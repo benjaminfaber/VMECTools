@@ -45,17 +45,19 @@ contains
   subroutine pest2vmec_setup_c_interface(options) bind(C,name='pest2vmec_setup_c_interface')
     use, intrinsic :: iso_c_binding
     type(vmec2pest_options) :: options
-    character, dimension(:), allocatable :: geom_file
+    character, dimension(:), allocatable, target :: geom_file
     real(c_double), dimension(:), allocatable :: surfaces
-    real(dp) :: x
-    real(c_double) :: y
-
-print *, c_sizeof(options%geom_file)
-print *, c_sizeof(options%x1)
+    integer :: nx2, nx3
+    character(len=2000), target :: file_name
+    
+    nx2 = options%nx2
+    nx3 = options%nx3
     call c2f(options%geom_file,geom_file)
-    print *, geom_file
-    call c2f(options%x1,surfaces)
-    print *, surfaces
+print *, geom_file
+!file_name(1:size(geom_file)) = geom_file(1:size(geom_file))
+    call c2f(options%x1,surfaces,options%nx1)
+!    pest = create_PEST_Obj(geom_file,surfaces,nx2,nx3)
+print *, pest%nx2
 
     deallocate(geom_file,surfaces)
    
@@ -92,7 +94,7 @@ print *, x1
     grid_string = trim(grid_ptr(1:str_len))
     print *, trim(grid_string)
 
-    pest = create_PEST_Obj(trim(vmec_string),x1,nx2,nx3)
+!    pest = create_PEST_Obj(trim(vmec_string),x1,nx2,nx3)
     if (trim(grid_string) .eq. "tok") then 
       norm_type = 'major_R'
     else
@@ -210,35 +212,21 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
     
     allocate(f_string(i))
     f_string = f_pointer(1:i)
+print *, size(f_string)
 
   end subroutine
 
-  subroutine c2f_real_array_1d(c_pointer,f_real)
+  subroutine c2f_real_array_1d(c_pointer,f_real,data_size)
     use, intrinsic :: iso_c_binding
     type(c_ptr), intent(in) :: c_pointer
     real(dp), dimension(:), allocatable :: f_real
-    real(c_double), dimension(:), pointer :: f_pointer
+    integer, intent(in) :: data_size
+    real(dp), dimension(:), pointer :: f_pointer
 
-    integer :: i, j
-    logical :: end_reached
-    
-    call c_f_pointer(c_pointer,f_pointer,[3])
-    print *,f_pointer
-    i = 1
-!
-!    end_reached = .false.
-!    do while (end_reached .eqv. .false.)
-!      i = i+1
-!      call c_f_pointer(c_pointer,f_pointer,[i])
-!      do j = 1,i
-!        print *, f_pointer(i)
-!      end do
-!      if (i .ge. 5) then
-!        end_reached = .true.
-!      end if
-!    end do
-!
-    allocate(f_real(i))
+    call c_f_pointer(c_pointer,f_pointer,[data_size])
+
+    allocate(f_real(data_size))
+    f_real = f_pointer(1:data_size)
   end subroutine
  
   subroutine pest2vmec_stellopt_interface

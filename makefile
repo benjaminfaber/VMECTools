@@ -5,12 +5,15 @@ $(shell mkdir -p $(OBJS_DIR))
 
 SRC_F90 := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f90' | sed "s|^\./||"))
 SRC_F := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f' | sed "s|^\./||"))
-SRC_CPP := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.cpp' | set "s|^\./||"))
+SRC_CXX := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.cpp' | sed "s|^\./||"))
+$(info ${PWD})
 
 OBJS_F90 := $(subst .f90,.o,$(SRC_F90))
 OBJS_F := $(subst .f,.o,$(SRC_F))
-OBJS_CPP := $(subst .cpp,.o,$(SRC_CPP))
-OBJS_LINK := $(addprefix $(OBJS_DIR)/,$(OBJS_F90)) $(addprefix $(OBJS_DIR)/,$(OBJS_F))
+OBJS_CXX := $(subst .cpp,.o,$(SRC_CXX))
+OBJS_LINK_F90 := $(addprefix $(OBJS_DIR)/,$(OBJS_F90))
+OBJS_LINK_F := $(addprefix $(OBJS_DIR)/,$(OBJS_F))
+OBJS_LINK_CXX := $(addprefix $(OBJS_DIR)/,$(OBJS_CXX))
 
 FC_INCS := -I$(OBJS_DIR) -J$(OBJS_DIR) -I$(LIB_DIR)
 CXX_INCS := -I$(OBJS_DIR) -I$(LIB_DIR)
@@ -37,7 +40,9 @@ BLAS_DIR := /opt/gcc/openblas-0.3.6
   # Above, the link flag "-Wl,-ydgemm_" causes the linker to report which version of DGEMM (the BLAS3 matrix-matrix-multiplication subroutine) is used.
 #else
 FC := mpifort
+CXX := mpicxx
 FCFLAGS := -O3 -march=skylake-avx512 -fopenmp -I$(NETCDF_F_DIR)/include -ffree-line-length-none
+CXXFLAGS := -O3 -march=skylake-avx512 -fopenmp
 FLDFLAGS := -O3 -march=skylake-avx512 -fopenmp -L$(NETCDF_F_DIR)/lib -L$(NETCDF_C_DIR)/lib -L$(BLAS_DIR)/lib -lnetcdff -lnetcdf -lopenblas
 CXXLDFLAGS := $(FLDFLAGS) -lgfortran
 #endif
@@ -59,8 +64,8 @@ VMEC2PEST := vmec2pest
 C_EXEC := c_exec
 VMECTOOLSLIB := $(addprefix $(LIB_DIR)/,libvmectools.a)
 all: v2p ctest
-v2p: libstell $(VMEC2PEST)
-lib: $(VMECTOOLSLIB)
+v2p: $(LIBSTELL) $(VMEC2PEST)
+lib: $(VMECTOOLSLIB) $(LIBSTELL)
 ctest: lib $(C_EXEC)
 #libstell: $(LIBSTELL)
 
@@ -69,25 +74,24 @@ export
 include makefile.depend
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f90
-	@$(FC) $(FCFLAGS) $(FC_INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
+	$(FC) $(FCFLAGS) $(FC_INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.f
-	@$(FC) $(FCFLAGS) $(FC_INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
+	$(FC) $(FCFLAGS) $(FC_INCS) -I $(LIBSTELL_DIR) -c -o $@ $<
 
 $(OBJS_DIR)/%.o: $(SRC_DIR)/%.cpp
-	@$(CXX) $(CXXFLAGS) $(CXX_INCS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(CXX_INCS) -c -o $@ $<
 
-$(VMEC2PEST): $(OBJS_LINK)
-	@$(FC) -o $@ $^ $(LIBSTELL) $(FLDFLAGS)
+$(VMEC2PEST): $(OBJS_LINK_F90) $(OBJS_LINK_F)
+	$(FC) -o $@ $^ $(LIBSTELL) $(FLDFLAGS)
 
-$(C_EXEC): $(OBJS_LINK)
-	@$(CXX) -o $@ $^ $(VMECTOOLSLIB) $(LIBSTELL) $(CXXLDFLAGS)
+$(C_EXEC): $(OBJS_LINK_CXX)
+	$(CXX) -o $@ $^ $(VMECTOOLSLIB) $(LIBSTELL) $(CXXLDFLAGS)
 
-$(VMECTOOLSLIB): $(OBJS_LINK)
-	ar crs $@ $^
+$(VMECTOOLSLIB): $(OBJS_LINK_F90) $(OBJS_LINK_F)
+	@ar crs $@ $^
 
-#$(LIBSTELL):
-libstell:
+$(LIBSTELL):
 	@$(MAKE) -C mini_libstell
 
 .PHONY: all allclean cleanexec libclean objclean libstellclean
