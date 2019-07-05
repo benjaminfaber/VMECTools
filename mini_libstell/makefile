@@ -5,7 +5,7 @@ LIBSTELL_OBJ_FILES = ezcdf.o ezcdf_GenPut.o ezcdf_inqvar.o handle_err.o stel_con
 	ezcdf_GenGet.o ezcdf_attrib.o ezcdf_opncls.o read_wout_mod.o safe_open_mod.o stel_kinds.o vsvd0.o \
 	vparams.o mgrid_mod.o vmec_input.o system_mod.o parse_extension.o getcarg.o vmec_getenv.o
 
-LIBSTELL_TARGET = mini_libstell.a
+LIBSTELL_TARGET = $(addprefix ../$(LIB_DIR),/mini_libstell.a)
 
 .PHONY: all clean
 
