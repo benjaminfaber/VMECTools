@@ -53,20 +53,24 @@ FCFLAGS += -fdefault-real-8 -fdefault-double-8
 # The variable LIBSTELL_DIR should either be "mini_libstell", if you use this reduced version of libstell
 # that comes packaged with this repository, or else it should point to a directory containing libstell .mod files
 # elsewhere on your system.
-LIBSTELL_DIR := mini_libstell
+MINI_LIBSTELL_DIR := mini_libstell
 
 # The variable LIBSTELL_FOR_SFINCS should either be "mini_libstell/mini_libstell.a", if you use this reduced version of libstell
 # that comes packaged with this repository, or else it should point to a libstell.a library elsewhere on your system.
-LIBSTELL := $(addprefix $(LIB_DIR)/,mini_libstell.a)
+MINI_LIBSTELL := $(addprefix $(LIB_DIR)/,mini_libstell.a)
+
+# If libstell.a does not exist, set it to the $(MINI_LIBSTELL) options
+LIBSTELL_DIR := /home/bfaber/projects/stellopt/src/LIBSTELL/Release
+LIBSTELL := $(addprefix $(LIBSTELL_DIR)/,libstell.a)
 
 VMEC2PEST := vmec2pest
 C_EXEC := c_exec
-VMECTOOLSLIB := $(addprefix $(LIB_DIR)/,libvmectools.a)
-all: v2p ctest
+V2PLIB := $(addprefix $(LIB_DIR)/,libvmec2pest.a)
+all: v2p
 v2p: $(LIBSTELL) $(VMEC2PEST)
-lib: $(VMECTOOLSLIB) $(LIBSTELL)
-ctest: lib $(C_EXEC)
-libst: $(LIBSTELL)
+lib: $(V2PLIB)
+ctest: $(V2PLIB) $(C_EXEC)
+mini_libstell: $(MINI_LIBSTELL)
 
 export
 
@@ -85,12 +89,12 @@ $(VMEC2PEST): $(OBJS_LINK_F90) $(OBJS_LINK_F)
 	$(FC) -o $@ $^ $(LIBSTELL) $(FLDFLAGS)
 
 $(C_EXEC): $(OBJS_LINK_CXX)
-	$(CXX) -o $@ $^ $(VMECTOOLSLIB) $(LIBSTELL) $(CXXLDFLAGS)
+	$(CXX) -o $@ $^ $(V2PLIB) $(LIBSTELL) $(CXXLDFLAGS)
 
-$(VMECTOOLSLIB): $(OBJS_LINK_F90) $(OBJS_LINK_F)
+$(V2PLIB): $(OBJS_LINK_F90) $(OBJS_LINK_F)
 	ar crs $@ $^
 
-$(LIBSTELL):
+$(MINI_LIBSTELL):
 	$(MAKE) -C mini_libstell
 
 .PHONY: all allclean cleanexec libclean objclean libstellclean

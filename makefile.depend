@@ -19,4 +19,4 @@ objs/compute_pest.mod: objs/compute_pest.o
 objs/normalizations.mod: objs/normalizations.o
 objs/interfaces.mod: objs/interfaces.o
 
-objs/test.o: lib/libvmectools.a lib/mini_libstell.a
+objs/test.o: lib/libvmec2pest.a
