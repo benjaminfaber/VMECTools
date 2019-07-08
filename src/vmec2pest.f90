@@ -32,7 +32,6 @@ program vmec2sfl
   call cpu_time(time1)
   infile = 'vmec2pest.inp'
   call read_vmec2pest_input(infile)
-print *,geom_id(1:50)
   pest = create_PEST_Obj(geom_id,surfaces,n_field_lines,n_parallel_pts)
   call set_PEST_reference_values(pest,norm_type)
   pest%x3_coord = x3_coord

@@ -13,7 +13,7 @@ module interfaces
   use normalizations, only: set_normalizations 
   implicit none
 
-  public :: pest2vmec_c_interface, pest2vmec_stellopt_interface, pest2vmec_setup_interface
+  public :: pest2vmec_c_interface, pest2vmec_stellopt_interface
 
   private
     type(PEST_Obj) :: pest ! Make this pest_object shared within the module so data can be read using get_PEST_data
@@ -34,83 +34,36 @@ module interfaces
     module procedure c2f_real_array_1d
   end interface 
 
-  interface pest2vmec_setup_interface
-    module procedure pest2vmec_setup_c_interface
-  end interface
-
 contains
-  !****************************************************************************
-  ! Interface to set up pest2vmec from C/C++
-  !****************************************************************************
-  subroutine pest2vmec_setup_c_interface(options) bind(C,name='pest2vmec_setup_c_interface')
-    use, intrinsic :: iso_c_binding
-    type(vmec2pest_options), target :: options
-    character(len=:), allocatable, target :: geom_file
-    character(len=:), pointer :: geom_id
-    real(c_double), dimension(:), allocatable :: surfaces
-    integer :: nx2, nx3
-    character(len=2000), target :: file_name
-    
-    nx2 = options%nx2
-    nx3 = options%nx3
-    call c2f(options%geom_file,geom_file)
-print *, len(geom_file)
-    geom_id => geom_file(1:len(geom_file))
-print *, geom_id
-!file_name(1:size(geom_file)) = geom_file(1:size(geom_file))
-    call c2f(options%x1,surfaces,options%nx1)
-    pest = create_PEST_Obj(geom_id,surfaces,nx2,nx3)
-print *, options%nx2, pest%nx2
-
-    deallocate(geom_file,surfaces)
-   
-  end subroutine
-
   !****************************************************************************
   ! Interface to call pest2vmec from C/C++
   !****************************************************************************
-  subroutine pest2vmec_c_interface(nx1,nx2,nx3,nfpi,x1,vmec_file,grid_type) bind(C,name='pest2vmec_c_interface')
+  subroutine pest2vmec_c_interface(options) bind(C,name='pest2vmec_c_interface')
     use, intrinsic :: iso_c_binding
-    integer(c_int), intent(in) :: nx1, nx2, nx3
-    real(c_double), intent(in) :: nfpi
-    real(c_double), dimension(nx1) :: x1 
-    type(c_ptr), target :: vmec_file
-    type(c_ptr), target :: grid_type
-    character(len=2000), pointer :: vmec_ptr
-    character(len=2000), pointer :: grid_ptr
-    character(len=2000), target :: vmec_string
-    character(len=2000), target :: grid_string
-    character(len=7) :: norm_type
-    character(len=5) :: x3_coord
-    integer :: i, surf_opt, str_len
+    type(vmec2pest_options), intent(in) :: options
+    character(len=:), allocatable, target :: geom_file
+    character(len=:), pointer :: geom_id
+    real(c_double), dimension(:), allocatable :: surfaces
+    integer :: surf_opt
+    character(len=:), allocatable :: grid_type, norm_type, x3_coord
     surf_opt = 0
 
-print *, nx1, nx2, nx3, nfpi
-print *, x1
-    call c_f_pointer(c_loc(vmec_file),vmec_ptr)
-    str_len = index(vmec_ptr,c_null_char)
-    vmec_string = trim(vmec_ptr(1:str_len))
-    print *, trim(vmec_string)
-
-    call c_f_pointer(c_loc(grid_type),grid_ptr)
-    str_len = index(grid_ptr,c_null_char)
-    grid_string = trim(grid_ptr(1:str_len))
-    print *, trim(grid_string)
-
-!    pest = create_PEST_Obj(trim(vmec_string),x1,nx2,nx3)
-    if (trim(grid_string) .eq. "tok") then 
-      norm_type = 'major_R'
-    else
-      norm_type = 'minor_r'
-      x3_coord = 'theta'
-    end if 
+    call c2f(options%geom_file,geom_file)
+    geom_id => geom_file(1:len(geom_file))
+    call c2f(options%x1,surfaces,options%nx1)
+    pest = create_PEST_Obj(geom_id,surfaces,options%nx2,options%nx3)
+ 
+    call c2f(options%grid_type,grid_type)
+    call c2f(options%x3_coord,x3_coord)
+    call c2f(options%norm_type,norm_type)
 
     call set_PEST_reference_values(pest,norm_type)
     pest%x3_coord = x3_coord
-    call compute_pest_geometry(pest,0.0,nfpi,surf_opt)
-    call set_normalizations(pest,trim(grid_string))
+    call compute_pest_geometry(pest,options%x3_center,options%nfpi,surf_opt)
+    call set_normalizations(pest,trim(grid_type))
 print *, pest%g11(pest%ix21,:,pest%ix11)
     
+    deallocate(geom_file,surfaces,grid_type,norm_type,x3_coord)
   end subroutine
 
   subroutine get_pest_data_c_interface(x1,x2,data_name,n_dims,data_size,c_data) bind(C,name="get_pest_data_c_interface")
@@ -218,7 +171,6 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
     call c_f_pointer(c_loc(f_pointer),f_char_pointer)
 
     f_string = f_char_pointer(1:i)
-print *, len(f_string)
 
   end subroutine
 

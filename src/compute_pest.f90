@@ -461,14 +461,18 @@ contains
       ! We know theta_pest = alpha + pest%iota(idx1) * pest%x3, but we need to determine
       ! theta_vmec = theta_pest - Lambda.
       !*********************************************************************
-      if (trim(pest%x3_coord) == 'zeta') then
-        pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
-      end if
+      select case(trim(pest%x3_coord))
+        case('zeta')
+print *, "yes"
+          pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+        case('theta')
+          pest%x3(:,idx1) = [( pest%safety_factor_q(idx1)*(x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
+        case default
+          pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+      end select
 
-      if (trim(pest%x3_coord) == 'theta') then
-        pest%x3(:,idx1) = [( pest%safety_factor_q(idx1)*(x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
-      end if
-
+print *, trim(pest%x3_coord),  pest%nx3,pest%ix31,pest%ix32
+print *, pest%x3
 
       if (verbose) print *,"  Beginning root solves to determine theta_vmec."
       root_solve_absolute_tolerance = 1.0d-10
@@ -477,6 +481,7 @@ contains
          zeta0 = pest%x3(idx3,idx1)
          do idx2 = pest%ix21,pest%ix22
             theta_pest_target = pest%x2(idx2) + pest%iota(idx1) * zeta0
+print *, theta_pest_target
             ! Guess that theta_vmec will be within 0.3 radians of theta_pest:
             theta_vmec_min = theta_pest_target - 0.3
             theta_vmec_max = theta_pest_target + 0.3

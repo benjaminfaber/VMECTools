@@ -308,7 +308,6 @@ C-----------------------------------------------
       filename = 'wout'
       CALL parse_extension(filename, file_or_extension, isnc)
       CALL flush(6)
-      print *, isnc
 !SPH  IF (.not.isnc) STOP 'ISNC ERR IN READ_WOUT_MOD'
       IF (isnc) THEN
 #if defined(NETCDF)
