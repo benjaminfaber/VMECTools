@@ -67,7 +67,7 @@ VMEC2PEST := vmec2pest
 C_EXEC := c_exec
 V2PLIB := $(addprefix $(LIB_DIR)/,libvmec2pest.a)
 all: v2p
-v2p: $(LIBSTELL) $(VMEC2PEST)
+v2p: $(VMEC2PEST)
 lib: $(V2PLIB)
 ctest: $(V2PLIB) $(C_EXEC)
 mini_libstell: $(MINI_LIBSTELL)
@@ -96,6 +96,8 @@ $(V2PLIB): $(OBJS_LINK_F90) $(OBJS_LINK_F)
 
 $(MINI_LIBSTELL):
 	$(MAKE) -C mini_libstell
+
+$(LIBSTELL):
 
 .PHONY: all allclean cleanexec libclean objclean libstellclean
 

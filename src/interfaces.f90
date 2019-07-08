@@ -18,7 +18,7 @@ module interfaces
   private
     type(PEST_Obj) :: pest ! Make this pest_object shared within the module so data can be read using get_PEST_data
 
-    type, bind(C) :: vmec2pest_options
+    type, bind(C) :: vmec2pest_c_options
       ! Currently this must be a NetCDF file
       type(c_ptr) :: geom_file
       type(c_ptr) :: grid_type
@@ -40,7 +40,7 @@ contains
   !****************************************************************************
   subroutine pest2vmec_c_interface(options) bind(C,name='pest2vmec_c_interface')
     use, intrinsic :: iso_c_binding
-    type(vmec2pest_options), intent(in) :: options
+    type(vmec2pest_c_options), intent(in) :: options
     character(len=:), allocatable, target :: geom_file
     character(len=:), pointer :: geom_id
     real(c_double), dimension(:), allocatable :: surfaces
@@ -173,7 +173,23 @@ contains
     f_real = f_pointer(1:data_size)
   end subroutine
  
-  subroutine pest2vmec_stellopt_interface
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Interface for calling vmec2pest from STELLOPT
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pest2vmec_stellopt_interface(surfaces,nx2,nx3,x3_center,x3_coord,nfpi,norm_type,grid_type)
+    character(*), intent(in) :: x3_coord, norm_type, grid_type
+    real(dp), dimension(:), intent(in) :: surfaces
+    real(dp), intent(in) :: x3_center, nfpi
+    integer, intent(in) :: nx2, nx3 
+    character(len=:), pointer :: geom_id
+    
+    geom_id = ""
+    pest = create_PEST_Obj(geom_id,surfaces,nx2,nx3)
+    call set_PEST_reference_values(pest,norm_type)
+    pest%x3_coord = x3_coord
+    call compute_pest_geometry(pest,x3_center,nfpi,0)
+    call set_normalizations(pest,grid_type) 
+    
   end subroutine
 
 end module
