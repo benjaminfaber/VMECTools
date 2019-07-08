@@ -44,7 +44,7 @@ contains
     character(len=:), allocatable, target :: geom_file
     character(len=:), pointer :: geom_id
     real(c_double), dimension(:), allocatable :: surfaces
-    integer :: surf_opt
+    integer :: surf_opt, i
     character(len=:), allocatable :: grid_type, norm_type, x3_coord
     surf_opt = 0
 
@@ -61,54 +61,38 @@ contains
     pest%x3_coord = x3_coord
     call compute_pest_geometry(pest,options%x3_center,options%nfpi,surf_opt)
     call set_normalizations(pest,trim(grid_type))
-print *, pest%g11(pest%ix21,:,pest%ix11)
+
+    deallocate(geom_file,grid_type,norm_type,x3_coord,surfaces)
     
-    deallocate(geom_file,surfaces,grid_type,norm_type,x3_coord)
   end subroutine
 
   subroutine get_pest_data_c_interface(x1,x2,data_name,n_dims,data_size,c_data) bind(C,name="get_pest_data_c_interface")
     use, intrinsic :: iso_c_binding
     integer(c_int), intent(in) :: n_dims, data_size, x1, x2
-    !character, dimension(*) :: data_name
-    type(c_ptr), target :: data_name
+    type(c_ptr), intent(in) :: data_name
     real(c_double), dimension(data_size), intent(out) :: c_data
-    ! Depending on the size of n_dims, one of these will be allocated
     real(dp), dimension(:), allocatable :: line_data
     real(dp), dimension(:,:), allocatable :: surf_data
     real(dp), dimension(:,:,:), allocatable :: vol_data 
-    character(len=1000), pointer :: data_string
-    character(len=1000), target :: temp
+    character(len=:), allocatable :: data_string
     integer idx, idx1, idx2, idx3, str_len;
 
-    temp = 'a'
-    data_string => temp 
-    call c_f_pointer(c_loc(data_name),data_string)
-    str_len = index(data_string,c_null_char)-1
-    temp = data_string(1:str_len)
-print *, str_len, data_string(1:str_len)
-print *, data_string
-print *, trim(temp)
-!    data_string = ""
-!    do idx1=1,size(data_name)
-!      data_string = trim(data_string)//trim(data_name(idx1))
-!    end do
+    call c2f(data_name,data_string)
 
-
+    ! TODO: implement bounds checking on x1 and x2 to ensure they aren't outside the dimension of
+    ! the PEST object
     select case(n_dims)
       case(1)
-print *, trim(temp)
         if (data_size .ne. pest%nx3) then
           print *, "Error! C array does not have the same size as ",pest%nx3,"!"
           stop
         end if
         allocate(line_data(pest%ix31:pest%ix32))
-        call get_PEST_data(pest,x1,x2,trim(temp),line_data)
+        call get_PEST_data(pest,x1,x2,trim(data_string),line_data)
         do idx3 = pest%ix31,pest%ix32
           idx = idx3 - pest%ix31 + 1
-print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest%L_ref
           c_data(idx) = line_data(idx3)
         end do
-        
         deallocate(line_data)
       case(2)
         if (data_size .ne. pest%nx2*pest%nx3) then
@@ -116,7 +100,7 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
           stop
         end if
         allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
-        call get_PEST_data(pest,x1,trim(temp),surf_data)
+        call get_PEST_data(pest,x1,trim(data_string),surf_data)
         do idx3 = pest%ix31,pest%ix32
           do idx2 = pest%ix21,pest%ix22
             idx = pest%nx2*(idx3 - pest%ix31) + idx2 - pest%ix21 + 1 
@@ -144,6 +128,8 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
         print *, "Error! n_dims must be specified to 1, 2, or 3!"
         stop
     end select
+
+    deallocate(data_string)
 
   end subroutine
 

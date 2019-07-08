@@ -15,7 +15,7 @@ contains
  
   subroutine set_normalizations(pest,grid_type)
     type(PEST_Obj), intent(inout) :: pest
-    character(len=8), intent(in) :: grid_type
+    character(*), intent(in) :: grid_type
     select case(trim(grid_type))
       case('gene')
         call gene_normalizations(pest)

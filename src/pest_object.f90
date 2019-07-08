@@ -322,8 +322,6 @@ contains
     character(*), intent(in) :: data_name
     real(dp), dimension(pest%ix31:pest%ix32), intent(out) :: line_data
 
-print *, trim(data_name)
-
     select case(trim(data_name))
       case('g11')
         line_data = pest%g11(idx2,:,idx1)
