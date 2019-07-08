@@ -44,8 +44,9 @@ contains
   !****************************************************************************
   subroutine pest2vmec_setup_c_interface(options) bind(C,name='pest2vmec_setup_c_interface')
     use, intrinsic :: iso_c_binding
-    type(vmec2pest_options) :: options
-    character, dimension(:), allocatable, target :: geom_file
+    type(vmec2pest_options), target :: options
+    character(len=:), allocatable, target :: geom_file
+    character(len=:), pointer :: geom_id
     real(c_double), dimension(:), allocatable :: surfaces
     integer :: nx2, nx3
     character(len=2000), target :: file_name
@@ -53,11 +54,13 @@ contains
     nx2 = options%nx2
     nx3 = options%nx3
     call c2f(options%geom_file,geom_file)
-print *, geom_file
+print *, len(geom_file)
+    geom_id => geom_file(1:len(geom_file))
+print *, geom_id
 !file_name(1:size(geom_file)) = geom_file(1:size(geom_file))
     call c2f(options%x1,surfaces,options%nx1)
-!    pest = create_PEST_Obj(geom_file,surfaces,nx2,nx3)
-print *, pest%nx2
+    pest = create_PEST_Obj(geom_id,surfaces,nx2,nx3)
+print *, options%nx2, pest%nx2
 
     deallocate(geom_file,surfaces)
    
@@ -194,8 +197,9 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
   subroutine c2f_string_array_1d(c_pointer,f_string)
     use, intrinsic :: iso_c_binding
     type(c_ptr), intent(in) :: c_pointer
-    character, dimension(:), allocatable :: f_string
+    character(len=:), allocatable, intent(out) :: f_string
     character, dimension(:), pointer :: f_pointer
+    character(len=:), pointer :: f_char_pointer
 
     integer :: i
     logical :: null_char_found
@@ -210,16 +214,18 @@ print *, idx, pest%bmag(x2,idx3,x1), pest%g11(x2,idx3,x1), line_data(idx3), pest
     end do
     i = i - 1
     
-    allocate(f_string(i))
-    f_string = f_pointer(1:i)
-print *, size(f_string)
+    allocate(character(len=i)::f_string)
+    call c_f_pointer(c_loc(f_pointer),f_char_pointer)
+
+    f_string = f_char_pointer(1:i)
+print *, len(f_string)
 
   end subroutine
 
   subroutine c2f_real_array_1d(c_pointer,f_real,data_size)
     use, intrinsic :: iso_c_binding
     type(c_ptr), intent(in) :: c_pointer
-    real(dp), dimension(:), allocatable :: f_real
+    real(dp), dimension(:), allocatable, intent(out) :: f_real
     integer, intent(in) :: data_size
     real(dp), dimension(:), pointer :: f_pointer
 

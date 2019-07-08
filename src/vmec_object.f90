@@ -71,11 +71,12 @@ contains
     ! which supplies the read_wout_mod module
     if (len(VMEC_id) .ge. 0) then
       VMEC_file = VMEC_id(1:len(VMEC_id))
+print *, len(VMEC_file)
       if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_file)
-!      call read_wout_file(VMEC_file, ierr, iopen)
+      call read_wout_file(trim(VMEC_file), ierr, iopen)
       if (iopen .ne. 0) stop 'error opening wout file'
       if (ierr .ne. 0) stop 'error reading wout file'
-      if (verbose) print *,"  Successfully read VMEC data from ",VMEC_file
+      if (verbose) print *,"  Successfully read VMEC data from ",trim(VMEC_file)
     end if
 
     if (verbose) print *,"  Number of field periods (nfp):",nfp

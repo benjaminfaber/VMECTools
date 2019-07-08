@@ -21,6 +21,7 @@
 !
       index_path = INDEX(file_or_extension, TRIM(file_to_parse))
 	index_comp = index_path
+      print *, index_path
 
       IF (index_path .gt. 0) THEN
 !
@@ -37,7 +38,8 @@
 !     CHECK FOR netcdf FILE EXTENSION (*.nc)
 !
          index_nc = INDEX(file_to_parse,".nc",BACK=.TRUE.)
-         lnc = (index_nc .eq. (LEN_TRIM(file_to_parse)-3))
+         lnc = (index_nc .eq. (LEN_TRIM(file_to_parse)-2))
+      print *, index_nc, lnc
 !
 !     MAY HAVE PASSED FILE NAME EXTENSION WITHOUT .nc; CHECK IF FILE_TO_PARSE EXISTS
          IF (.not.lnc) THEN

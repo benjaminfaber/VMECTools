@@ -12,16 +12,16 @@ LIBSTELL_TARGET = $(addprefix ../$(LIB_DIR),/mini_libstell.a)
 all: $(LIBSTELL_TARGET)
 
 %.o: %.f90
-	@$(FC) $(FCFLAGS) -DNETCDF -c $<
+	$(FC) $(FCFLAGS) -DNETCDF -c $<
 
 %.o: %.f
-	@$(FC) $(FCFLAGS) -DNETCDF -c $<
+	$(FC) $(FCFLAGS) -DNETCDF -c $<
 
 %.o: %.F
-	@$(FC) $(FCFLAGS) -DNETCDF -c $<
+	$(FC) $(FCFLAGS) -DNETCDF -c $<
 
 $(LIBSTELL_TARGET): $(LIBSTELL_OBJ_FILES)
-	@ar rcs $(LIBSTELL_TARGET) $(LIBSTELL_OBJ_FILES)
+	ar rcs $(LIBSTELL_TARGET) $(LIBSTELL_OBJ_FILES)
 
 clean:
 	rm -f *.o *.mod *.MOD *~ $(LIBSTELL_TARGET)

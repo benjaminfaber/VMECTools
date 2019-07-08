@@ -6,7 +6,6 @@ $(shell mkdir -p $(OBJS_DIR))
 SRC_F90 := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f90' | sed "s|^\./||"))
 SRC_F := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f' | sed "s|^\./||"))
 SRC_CXX := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.cpp' | sed "s|^\./||"))
-$(info ${PWD})
 
 OBJS_F90 := $(subst .f90,.o,$(SRC_F90))
 OBJS_F := $(subst .f,.o,$(SRC_F))
@@ -67,7 +66,7 @@ all: v2p ctest
 v2p: $(LIBSTELL) $(VMEC2PEST)
 lib: $(VMECTOOLSLIB) $(LIBSTELL)
 ctest: lib $(C_EXEC)
-#libstell: $(LIBSTELL)
+libst: $(LIBSTELL)
 
 export
 
@@ -89,10 +88,10 @@ $(C_EXEC): $(OBJS_LINK_CXX)
 	$(CXX) -o $@ $^ $(VMECTOOLSLIB) $(LIBSTELL) $(CXXLDFLAGS)
 
 $(VMECTOOLSLIB): $(OBJS_LINK_F90) $(OBJS_LINK_F)
-	@ar crs $@ $^
+	ar crs $@ $^
 
 $(LIBSTELL):
-	@$(MAKE) -C mini_libstell
+	$(MAKE) -C mini_libstell
 
 .PHONY: all allclean cleanexec libclean objclean libstellclean
 
