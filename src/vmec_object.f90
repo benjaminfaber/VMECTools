@@ -65,13 +65,11 @@ contains
     real(dp) :: dphi
     logical :: verbose
 
-    verbose = .true.
-
+    verbose = .false.
     ! If we are reading a file, then we are running outside the scope of STELLOPT,
     ! which supplies the read_wout_mod module
-    if (len(VMEC_id) .ge. 0) then
+    if (associated(VMEC_id) .eqv. .true.) then
       VMEC_file = VMEC_id(1:len(VMEC_id))
-print *, len(VMEC_file)
       if (verbose) print *,"  About to read VMEC wout file ",trim(VMEC_file)
       call read_wout_file(trim(VMEC_file), ierr, iopen)
       if (iopen .ne. 0) stop 'error opening wout file'

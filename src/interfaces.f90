@@ -13,7 +13,7 @@ module interfaces
   use normalizations, only: set_normalizations 
   implicit none
 
-  public :: pest2vmec_c_interface, pest2vmec_stellopt_interface
+  public :: vmec2pest_c_interface, vmec2pest_stellopt_interface, get_pest_data_interface
 
   private
     type(PEST_Obj) :: pest ! Make this pest_object shared within the module so data can be read using get_PEST_data
@@ -36,9 +36,9 @@ module interfaces
 
 contains
   !****************************************************************************
-  ! Interface to call pest2vmec from C/C++
+  ! Interface to call vmec2pest from C/C++
   !****************************************************************************
-  subroutine pest2vmec_c_interface(options) bind(C,name='pest2vmec_c_interface')
+  subroutine vmec2pest_c_interface(options) bind(C,name='vmec2pest_c_interface')
     use, intrinsic :: iso_c_binding
     type(vmec2pest_c_options), intent(in) :: options
     character(len=:), allocatable, target :: geom_file
@@ -176,20 +176,82 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Interface for calling vmec2pest from STELLOPT
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine pest2vmec_stellopt_interface(surfaces,nx2,nx3,x3_center,x3_coord,nfpi,norm_type,grid_type)
+  subroutine vmec2pest_stellopt_interface(surfaces,nx2,nx3,x3_center,x3_coord,nfpi,norm_type,grid_type)
     character(*), intent(in) :: x3_coord, norm_type, grid_type
     real(dp), dimension(:), intent(in) :: surfaces
     real(dp), intent(in) :: x3_center, nfpi
     integer, intent(in) :: nx2, nx3 
     character(len=:), pointer :: geom_id
     
-    geom_id = ""
+    geom_id => NULL()
     pest = create_PEST_Obj(geom_id,surfaces,nx2,nx3)
     call set_PEST_reference_values(pest,norm_type)
     pest%x3_coord = x3_coord
     call compute_pest_geometry(pest,x3_center,nfpi,0)
     call set_normalizations(pest,grid_type) 
     
+  end subroutine
+
+  subroutine get_pest_data_interface(x1,x2,data_string,n_dims,data_size,data_arr)
+    integer, intent(in) :: n_dims, data_size, x1, x2
+    character(*), intent(in) :: data_string
+    real(dp), dimension(data_size), intent(out) :: data_arr
+    real(dp), dimension(:), allocatable :: line_data
+    real(dp), dimension(:,:), allocatable :: surf_data
+    real(dp), dimension(:,:,:), allocatable :: vol_data 
+    integer idx, idx1, idx2, idx3
+
+
+    ! TODO: implement bounds checking on x1 and x2 to ensure they aren't outside the dimension of
+    ! the PEST object
+    select case(n_dims)
+      case(1)
+        if (data_size .ne. pest%nx3) then
+          print *, "Error! Array does not have the same size as ",pest%nx3,"!"
+          stop
+        end if
+        allocate(line_data(pest%ix31:pest%ix32))
+        call get_PEST_data(pest,x1,x2,trim(data_string),line_data)
+        do idx3 = pest%ix31,pest%ix32
+          idx = idx3 - pest%ix31 + 1
+          data_arr(idx) = line_data(idx3)
+        end do
+        deallocate(line_data)
+      case(2)
+        if (data_size .ne. pest%nx2*pest%nx3) then
+          print *, "Error! Array does not have the same size as ",pest%nx2*pest%nx3,"!"
+          stop
+        end if
+        allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+        call get_PEST_data(pest,x1,trim(data_string),surf_data)
+        do idx3 = pest%ix31,pest%ix32
+          do idx2 = pest%ix21,pest%ix22
+            idx = pest%nx2*(idx3 - pest%ix31) + idx2 - pest%ix21 + 1 
+            data_arr(idx) = surf_data(idx2,idx3)
+          end do
+        end do
+        deallocate(surf_data)
+      case(3)
+        if (data_size .ne. pest%nx1*pest%nx2*pest%nx3) then
+          print *, "Error! Array does not have the same size as ",pest%nx1*pest%nx2*pest%nx3,"!"
+          stop
+        end if
+        allocate(vol_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
+        call get_PEST_data(pest,trim(data_string),vol_data)
+        do idx1 = pest%ix11,pest%ix12
+          do idx3 = pest%ix31,pest%ix32
+            do idx2 = pest%ix21,pest%ix22
+              idx = pest%nx2*pest%nx3*(idx1 - pest%ix11) + pest%nx2*(idx3 - pest%ix31) + idx2 - pest%ix21 + 1 
+              data_arr(idx) = vol_data(idx2,idx3,idx1)
+            end do
+          end do
+        end do
+        deallocate(vol_data)
+      case default
+        print *, "Error! n_dims must be specified to 1, 2, or 3!"
+        stop
+    end select
+
   end subroutine
 
 end module
