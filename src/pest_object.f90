@@ -96,6 +96,8 @@ module pest_object
   end interface
 
   interface get_PEST_data
+    module procedure get_PEST_VMEC_data
+    module procedure get_PEST_radial_data
     module procedure get_PEST_field_line_data
     module procedure get_PEST_surface_data
     module procedure get_PEST_volume_data
@@ -279,7 +281,8 @@ contains
       case('d_B_d_x3')
         surf_data = pest%d_B_d_x3(:,:,idx1)
       case default
-        surf_data = pest%bmag(:,:,idx1)
+        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        stop
     end select
   end subroutine 
 
@@ -312,7 +315,8 @@ contains
       case('d_B_d_x3')
         vol_data = pest%d_B_d_x3
       case default
-        vol_data = pest%bmag
+        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        stop
     end select
   end subroutine
 
@@ -345,8 +349,46 @@ contains
         line_data = pest%curv_drift_x2(idx2,:,idx1)
       case('d_B_d_x3')
         line_data = pest%d_B_d_x3(idx2,:,idx1)
+      case('x3')
+        line_data = pest%x3(:,idx1)
       case default
-        line_data = pest%bmag(idx2,:,idx1)
+        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        stop
+    end select
+  end subroutine
+
+  subroutine get_PEST_radial_data(pest,idx1,data_name,rad_data)
+    type(PEST_Obj), intent(in) :: pest
+    integer, intent(in) :: idx1
+    character(*), intent(in) :: data_name
+    real(dp), intent(out) :: rad_data
+
+    select case(trim(data_name))
+      case('iota')
+        rad_data = pest%iota(idx1)
+      case('safety_factor_q')
+        rad_data = pest%safety_factor_q(idx1)
+      case('shat')
+        rad_data = pest%shat(idx1)
+      case('x1')
+        rad_data = pest%x1(idx1)
+      case default
+        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        stop
+    end select
+  end subroutine
+
+  subroutine get_PEST_VMEC_data(pest,data_name,vmec_data)
+    type(PEST_Obj), intent(in) :: pest
+    character(*), intent(in) :: data_name
+    real(dp), intent(out) :: vmec_data
+
+    select case(trim(data_name))
+      case('nfp')
+        vmec_data = pest%vmec%nfp
+      case default
+        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        stop
     end select
   end subroutine
 end module 

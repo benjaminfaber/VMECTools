@@ -65,7 +65,7 @@ LIBSTELL := $(addprefix $(LIBSTELL_DIR)/,libstell.a)
 
 VMEC2PEST := vmec2pest
 C_EXEC := c_exec
-V2PLIB := $(addprefix $(LIB_DIR)/,libvmec2pest.a)
+V2PLIB := $(addprefix $(LIB_DIR)/,libvmectools.a)
 all: v2p
 v2p: $(VMEC2PEST)
 lib: $(V2PLIB)

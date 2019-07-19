@@ -196,6 +196,7 @@ contains
     integer, intent(in) :: n_dims, data_size, x1, x2
     character(*), intent(in) :: data_string
     real(dp), dimension(data_size), intent(out) :: data_arr
+    real(dp) :: rad_data, vmec_data
     real(dp), dimension(:), allocatable :: line_data
     real(dp), dimension(:,:), allocatable :: surf_data
     real(dp), dimension(:,:,:), allocatable :: vol_data 
@@ -205,6 +206,20 @@ contains
     ! TODO: implement bounds checking on x1 and x2 to ensure they aren't outside the dimension of
     ! the PEST object
     select case(n_dims)
+      case(-1)
+        if (data_size .ne. 1) then
+          print *, "Error! Array does not have the same size as 1!"
+          stop
+        endif
+        call get_PEST_data(pest,trim(data_string),vmec_data)
+        data_arr(1) = vmec_data
+      case(0)
+        if (data_size .ne. 1) then
+          print *, "Error! Array does not have the same size as 1!"
+          stop
+        endif
+        call get_PEST_data(pest,x1,trim(data_string),rad_data)
+        data_arr(1) = rad_data
       case(1)
         if (data_size .ne. pest%nx3) then
           print *, "Error! Array does not have the same size as ",pest%nx3,"!"
@@ -248,7 +263,12 @@ contains
         end do
         deallocate(vol_data)
       case default
-        print *, "Error! n_dims must be specified to 1, 2, or 3!"
+        print *, "Error! n_dims must one of the following:"
+        print *, "n_dims = -1 - VMEC data"
+        print *, "n_dims = 0 - radial data"
+        print *, "n_dims = 1 - field line data"
+        print *, "n_dims = 2 - flux surface data"
+        print *, "n_dims = 3 - volume data"
         stop
     end select
 
