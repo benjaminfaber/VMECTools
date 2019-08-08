@@ -13,7 +13,7 @@ module interfaces
   use normalizations, only: set_normalizations 
   implicit none
 
-  public :: vmec2pest_c_interface, vmec2pest_stellopt_interface, get_pest_data_interface
+  public :: vmec2pest_interface, vmec2pest_c_interface, vmec2pest_stellopt_interface, get_pest_data_interface
 
   private
     type(PEST_Obj) :: pest ! Make this pest_object shared within the module so data can be read using get_PEST_data
@@ -71,6 +71,7 @@ contains
     integer(c_int), intent(in) :: n_dims, data_size, x1, x2
     type(c_ptr), intent(in) :: data_name
     real(c_double), dimension(data_size), intent(out) :: c_data
+    real(dp) :: vmec_data, rad_data
     real(dp), dimension(:), allocatable :: line_data
     real(dp), dimension(:,:), allocatable :: surf_data
     real(dp), dimension(:,:,:), allocatable :: vol_data 
@@ -82,9 +83,23 @@ contains
     ! TODO: implement bounds checking on x1 and x2 to ensure they aren't outside the dimension of
     ! the PEST object
     select case(n_dims)
+      case(-1)
+        if (data_size .ne. 1) then
+          print *, "VMEC2PEST Error! C array does not have the same size as 1!"
+          stop
+        endif
+        call get_PEST_data(pest,trim(data_string),vmec_data)
+        c_data(1) = vmec_data
+      case(0)
+        if (data_size .ne. 1) then
+          print *, "VMEC2PEST Error! C array does not have the same size as 1!"
+          stop
+        endif
+        call get_PEST_data(pest,x1,trim(data_string),rad_data)
+        c_data(1) = rad_data
       case(1)
         if (data_size .ne. pest%nx3) then
-          print *, "Error! C array does not have the same size as ",pest%nx3,"!"
+          print *, "VMEC2PEST Error! C array does not have the same size as ",pest%nx3,"!"
           stop
         end if
         allocate(line_data(pest%ix31:pest%ix32))
@@ -96,7 +111,7 @@ contains
         deallocate(line_data)
       case(2)
         if (data_size .ne. pest%nx2*pest%nx3) then
-          print *, "Error! C array does not have the same size as ",pest%nx2*pest%nx3,"!"
+          print *, "VMEC2PEST Error! C array does not have the same size as ",pest%nx2*pest%nx3,"!"
           stop
         end if
         allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
@@ -110,7 +125,7 @@ contains
         deallocate(surf_data)
       case(3)
         if (data_size .ne. pest%nx1*pest%nx2*pest%nx3) then
-          print *, "Error! C array does not have the same size as ",pest%nx1*pest%nx2*pest%nx3,"!"
+          print *, "VMEC2PEST Error! C array does not have the same size as ",pest%nx1*pest%nx2*pest%nx3,"!"
           stop
         end if
         allocate(vol_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
@@ -125,7 +140,7 @@ contains
         end do
         deallocate(vol_data)
       case default
-        print *, "Error! n_dims must be specified to 1, 2, or 3!"
+        print *, "VMEC2PEST Error! n_dims must be specified to 1, 2, or 3!"
         stop
     end select
 
@@ -192,6 +207,27 @@ contains
     
   end subroutine
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Interface for calling vmec2pest from Fortran
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine vmec2pest_interface(geom_file,surfaces,nx2,nx3,x3_center,x3_coord,nfpi,norm_type,grid_type)
+    character(*), intent(in), target :: geom_file
+    character(*), intent(in) :: x3_coord, norm_type, grid_type
+    real(dp), dimension(:), intent(in) :: surfaces
+    real(dp), intent(in) :: x3_center, nfpi
+    integer, intent(in) :: nx2, nx3 
+    character(len=:), pointer :: geom_id
+    
+    geom_id => geom_file
+    pest = create_PEST_Obj(geom_id,surfaces,nx2,nx3)
+    call set_PEST_reference_values(pest,norm_type)
+    pest%x3_coord = x3_coord
+    call compute_pest_geometry(pest,x3_center,nfpi,0)
+    call set_normalizations(pest,grid_type) 
+    
+
+  end subroutine
+
   subroutine get_pest_data_interface(x1,x2,data_string,n_dims,data_size,data_arr)
     integer, intent(in) :: n_dims, data_size, x1, x2
     character(*), intent(in) :: data_string
@@ -208,21 +244,21 @@ contains
     select case(n_dims)
       case(-1)
         if (data_size .ne. 1) then
-          print *, "Error! Array does not have the same size as 1!"
+          print *, "VMEC2PEST Error! Array does not have the same size as 1!"
           stop
         endif
         call get_PEST_data(pest,trim(data_string),vmec_data)
         data_arr(1) = vmec_data
       case(0)
         if (data_size .ne. 1) then
-          print *, "Error! Array does not have the same size as 1!"
+          print *, "VMEC2PEST Error! Array does not have the same size as 1!"
           stop
         endif
         call get_PEST_data(pest,x1,trim(data_string),rad_data)
         data_arr(1) = rad_data
       case(1)
         if (data_size .ne. pest%nx3) then
-          print *, "Error! Array does not have the same size as ",pest%nx3,"!"
+          print *, "VMEC2PEST Error! Array does not have the same size as ",pest%nx3,"!"
           stop
         end if
         allocate(line_data(pest%ix31:pest%ix32))
@@ -234,7 +270,7 @@ contains
         deallocate(line_data)
       case(2)
         if (data_size .ne. pest%nx2*pest%nx3) then
-          print *, "Error! Array does not have the same size as ",pest%nx2*pest%nx3,"!"
+          print *, "VMEC2PEST Error! Array does not have the same size as ",pest%nx2*pest%nx3,"!"
           stop
         end if
         allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
@@ -248,7 +284,7 @@ contains
         deallocate(surf_data)
       case(3)
         if (data_size .ne. pest%nx1*pest%nx2*pest%nx3) then
-          print *, "Error! Array does not have the same size as ",pest%nx1*pest%nx2*pest%nx3,"!"
+          print *, "VMEC2PEST Error! Array does not have the same size as ",pest%nx1*pest%nx2*pest%nx3,"!"
           stop
         end if
         allocate(vol_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))
@@ -263,7 +299,7 @@ contains
         end do
         deallocate(vol_data)
       case default
-        print *, "Error! n_dims must one of the following:"
+        print *, "VMEC2PEST Error! n_dims must one of the following:"
         print *, "n_dims = -1 - VMEC data"
         print *, "n_dims = 0 - radial data"
         print *, "n_dims = 1 - field line data"

@@ -12,7 +12,7 @@ program vmec2sfl
   use io_core, only: read_vmec2pest_input, write_pest_file, geom_file, surfaces, surf_opt, &
     & x3_center, n_field_lines, n_parallel_pts, n_field_periods, x3_coord, norm_type, output_files, &
     & write_gene_geometry_file, write_cylindrical_surface, surface_quantities, n_surface_quantities, &
-    & write_surface_quantity_cyl, write_surface_quantity_xyz, geom_id
+    & write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta, geom_id
   use compute_pest, only: compute_pest_geometry
   use normalizations, only: set_normalizations
   implicit none
@@ -62,9 +62,10 @@ program vmec2sfl
     allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
     do i=1,n_surface_quantities
       do j=pest%ix11,pest%ix12
-!        call get_PEST_data(pest,j,surface_quantities(i),surf_data)
-!        call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
-!        call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
+        call get_PEST_data(pest,j,surface_quantities(i),surf_data)
+        call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
+        call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
+        call write_surface_quantity_theta_zeta(pest,j,surface_quantities(i),surf_data)
       end do
     end do
     deallocate(surf_data)

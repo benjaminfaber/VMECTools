@@ -10,7 +10,7 @@ module io_core
   implicit none
 
   public:: read_vmec2pest_input, write_pest_file, write_cylindrical_surface, write_RZ_theta_zeta_grid, &
-    & write_gene_geometry_file, write_surface_quantity_cyl, write_surface_quantity_xyz
+    & write_gene_geometry_file, write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta
   public:: tag, geom_file, outdir, x3_coord, norm_type, &
     & n_field_lines, n_parallel_pts, x3_center, &
     & n_field_periods, surfaces, surf_opt, verbose, test, &
@@ -71,7 +71,7 @@ print *, len(trim(surface_quantities(j+1)))
       j = j + 1
     end do
 
-    n_surface_quantities = j
+    n_surface_quantities = j-1
 print *, len(trim(geom_file))
 
     geom_id => geom_file(1:len(trim(geom_file)))
@@ -103,7 +103,7 @@ print *, geom_id
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
     write (iunit,'(A,F12.7)') 'shat = ', pest%shat(idx1)
     write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
-    write (iunit,'(A,I6)') 'n_pol = ', 1 
+    write (iunit,'(A,I6)') 'n_pol = ', ceiling(n_field_periods/pest%vmec%nfp)
     write (iunit,'(A)') '/'
     write (iunit,'(9(A23,2x))') '#theta','g11','g12','g22','g13','g23','g33','|B|','sqrt(g)', 'K2', 'K1', 'dBdz' 
     do k=pest%ix31,pest%ix32-1
@@ -134,7 +134,7 @@ print *, geom_id
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
     write (iunit,'(A,F12.7)') 'shat = ', pest%shat(idx1)
     write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
-    write (iunit,'(A,I6)') 'n_pol = ', 1 
+    write (iunit,'(A,I6)') 'n_pol = ', ceiling(n_field_periods/pest%vmec%nfp)
     write (iunit,'(A)') '/'
     write (iunit,'(9(A23,2x))') '#theta','g11','g12','g22','g13','g23','g33','|B|','sqrt(g)', 'K2', 'K1', 'dBdz' 
     do k=pest%ix31,pest%ix32-1
@@ -244,7 +244,7 @@ print *, geom_id
     write (iunit_xyz,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
     write (iunit_xyz,'(A,F12.7)') 'shat = ', pest%shat(idx1)
     write (iunit_xyz,'(A)') '/'
-    write (iunit_xyz,'(3(A12))') '# R', 'Z', 'Phi'
+    write (iunit_xyz,'(3(A12))') '# ', 'X', 'Y', 'Z' 
 
     do k=pest%ix31,pest%ix32-1
       do j=pest%ix21,pest%ix22
@@ -254,6 +254,79 @@ print *, geom_id
       
     end do
     close(iunit_xyz)
+  end subroutine
+
+  subroutine write_surface_quantity_theta_zeta(pest,idx1,data_name,surf_data)
+    type(PEST_Obj), intent(in) :: pest
+    integer, intent(in) :: idx1
+    character(len=32), intent(in) :: data_name
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32), intent(in) :: surf_data
+    integer :: i, j, jp1, k, iunit_tz, theta_index
+    real(dp) :: prefac, surf_interp, theta, theta_j, theta_jp1, theta_interp, dt1, dt2, delta
+    character(len=2000) :: filename_tz, filenumber
+    real(dp), parameter :: pi2 = pi+pi
+    real(dp), parameter :: eps = 1e-8
+
+    write(filenumber,"(I0.3)") idx1
+
+    prefac = 1.0
+    if (trim(pest%x3_coord) .eq. 'theta') then
+      prefac = pest%safety_factor_q(idx1)
+    end if
+
+    filename_tz = trim(outdir)//"theta_zeta_surface_"//trim(tag)//"_"//trim(data_name)//"_surf_"//trim(filenumber)//".dat"
+    open(file=trim(filename_tz),newunit=iunit_tz)
+    write (iunit_tz,'(A)') '&parameters'
+    write (iunit_tz,'(A,F12.7)') '!s0 = ', pest%x1(idx1) 
+    write (iunit_tz,'(A,F12.7)') '!minor_r = ', pest%minor_r
+    write (iunit_tz,'(A,F12.7)') '!major_R = ', pest%major_R
+    write (iunit_tz,'(A,F12.7)') '!Bref = ', pest%B_ref
+    write (iunit_tz,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
+    write (iunit_tz,'(A,F12.7)') 'shat = ', pest%shat(idx1)
+    write (iunit_tz,'(A)') '/'
+    write (iunit_tz,'(5(A12))') '#theta_index', 'theta', 'zeta_index', 'zeta', trim(data_name)
+
+    do k=pest%ix31,pest%ix32-1
+      do j=pest%ix21,pest%ix22
+        if (j .lt. pest%ix22) then 
+          jp1 = j+1 
+        else 
+          jp1 = pest%ix21
+        end if
+        theta = 0.
+        theta_j = pest%x2(j) + pest%iota(idx1)*prefac*pest%x3(k,idx1)
+        theta_jp1 = pest%x2(jp1) + pest%iota(idx1)*prefac*pest%x3(k,idx1)
+        if (theta_j .lt. (0.0 - eps)) then
+          theta_j = pi2 + theta_j
+        end if
+        if (theta_jp1 .lt. (0.0 - eps)) then 
+          theta_jp1 = pi2 + theta_jp1
+        end if
+        i = 0
+        do while (theta .lt. (theta_j - eps))
+          i = i + 1
+          theta = real(i)*pi2/real(pest%nx2)
+        end do
+        theta_j = mod(theta_j,pi2)
+        theta_jp1 = mod(theta_jp1,pi2)
+
+        theta_index = mod(i,pest%nx2)
+        theta_interp = real(theta_index)*pi2/real(pest%nx2)
+        dt1 = theta_interp - theta_j
+        if (dt1 .lt. -eps) then
+          dt1 = dt1 + pi2
+        end if
+        dt2 = theta_jp1 - theta_interp
+        if (dt2 .lt. -eps) then
+          dt2 = dt2 + pi2
+        end if       
+        surf_interp = real(pest%nx2)/pi2*(dt2*surf_data(j,k) + dt1*surf_data(jp1,k))
+        write (iunit_tz,'(2(I5,2x,F12.7,2x),F12.7)') theta_index+1, theta_interp, k+pest%nx3/2+1, prefac*pest%x3(k,idx1), surf_interp
+      end do
+      write (iunit_tz,'(A)') " "
+    end do
+
+    close(iunit_tz)
   end subroutine
 
   subroutine write_RZ_theta_zeta_grid(pest,idx1,nfpi)

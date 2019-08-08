@@ -121,7 +121,7 @@ contains
     end do
 
     if (j .eq. 0) then
-      print *, "Error! Cannot compute a surface at s = 0"
+      print *, "VMEC2PEST error! Cannot compute a surface at s = 0"
       stop
     end if 
     nsurf = j
@@ -280,8 +280,12 @@ contains
         surf_data = pest%curv_drift_x2(:,:,idx1)
       case('d_B_d_x3')
         surf_data = pest%d_B_d_x3(:,:,idx1)
+      case('R')
+        surf_data = pest%Rsurf(:,:,idx1)
+      case('Z')
+        surf_data = pest%Zsurf(:,:,idx1)
       case default
-        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        write(6,"(A)") "VMEC2PEST error! Data field with name ",trim(data_name)," does not exist!"
         stop
     end select
   end subroutine 
@@ -315,7 +319,7 @@ contains
       case('d_B_d_x3')
         vol_data = pest%d_B_d_x3
       case default
-        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        write(6,"(A)") "VMEC2PEST error! Data field with name ",trim(data_name)," does not exist!"
         stop
     end select
   end subroutine
@@ -352,7 +356,7 @@ contains
       case('x3')
         line_data = pest%x3(:,idx1)
       case default
-        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        write(6,"(A)") "VMEC2PEST error! Data field with name ",trim(data_name)," does not exist!"
         stop
     end select
   end subroutine
@@ -373,7 +377,7 @@ contains
       case('x1')
         rad_data = pest%x1(idx1)
       case default
-        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        write(6,"(A)") "VMEC2PEST error! Data field with name ",trim(data_name)," does not exist!"
         stop
     end select
   end subroutine
@@ -387,7 +391,7 @@ contains
       case('nfp')
         vmec_data = pest%vmec%nfp
       case default
-        write(6,"(A)") "Error! Data field with name ",trim(data_name)," does not exist!"
+        write(6,"(A)") "VMEC2PEST error! Data field with name ",trim(data_name)," does not exist!"
         stop
     end select
   end subroutine

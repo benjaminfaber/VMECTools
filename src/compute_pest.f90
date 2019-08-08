@@ -479,8 +479,8 @@ contains
          do idx2 = pest%ix21,pest%ix22
             theta_pest_target = pest%x2(idx2) + pest%iota(idx1) * zeta0
             ! Guess that theta_vmec will be within 0.3 radians of theta_pest:
-            theta_vmec_min = theta_pest_target - 0.3
-            theta_vmec_max = theta_pest_target + 0.3
+            theta_vmec_min = theta_pest_target - 0.5
+            theta_vmec_max = theta_pest_target + 0.5
 
             ! In the 4th argument, we are telling the root-finder (fzero) to use theta_pest as the initial guess for theta_vmec.
             call fzero(fzero_residual, theta_vmec_min, theta_vmec_max, theta_pest_target, &
