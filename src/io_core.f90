@@ -71,7 +71,8 @@ print *, len(trim(surface_quantities(j+1)))
       j = j + 1
     end do
 
-    n_surface_quantities = j-1
+    n_surface_quantities = j
+    print *, n_surface_quantities
 print *, len(trim(geom_file))
 
     geom_id => geom_file(1:len(trim(geom_file)))
@@ -250,9 +251,18 @@ print *, geom_id
       do j=pest%ix21,pest%ix22
         write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
       end do
+      j=pest%ix21
+      write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
       write (iunit_xyz,'(A)') " "
-      
     end do
+    k=pest%ix31
+    do j=pest%ix21,pest%ix22
+      write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
+    end do
+    j=pest%ix21
+    write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
+    write (iunit_xyz,'(A)') " "
+
     close(iunit_xyz)
   end subroutine
 
