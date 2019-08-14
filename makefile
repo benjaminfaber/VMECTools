@@ -45,7 +45,7 @@ CXX := mpicxx
 COMPILE_FLAGS := -O3 -march=skylake-avx512 -fopenmp
 FC_FLAGS := $(COMPILE_FLAGS) -I$(NETCDF_F_INC_DIR) -ffree-line-length-none
 CXX_FLAGS := $(COMPILE_FLAGS)
-F_LD_FLAGS := $(COMPILE_FLAGS) -L$(NETCDF_F_DIR)/lib -L$(NETCDF_C_DIR)/lib -L$(BLAS_DIR)/lib -lnetcdff -lnetcdf -lopenblas
+F_LD_FLAGS := $(COMPILE_FLAGS) -L$(NETCDF_F_LIB_DIR) -L$(NETCDF_C_LIB_DIR) -L$(BLAS_LIB_DIR) -lnetcdff -lnetcdf -lopenblas
 CXX_LD_FLAGS := $(F_LD_FLAGS) -lgfortran
 #endif
 # End of system-dependent variable assignments
