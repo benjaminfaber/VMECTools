@@ -10,7 +10,7 @@ Building `vmec2pest` requires the following packages
   - [NetCDF libraries](https://www.unidata.ucar.edu/software/netcdf/)
   - An optimized BLAS/LAPACK installation (such as [OpenBLAS](https://github.com/xianyi/OpenBLAS))
 
-The `NETCDF_F_DIR`, `NETCDF_C_DIR` and `BLAS_DIR` directories need to be set to the appropriate path.  To make `vmec2pest`, in the top-level directory, execute
+The `NETCDF_F_INC_DIR`, `NETCDF_F_LIB_DIR`, `NETCDF_C_INC_DIR`, `NETCDF_C_LIB_DIR` and `BLAS_LIB_DIR` directories need to be set to the appropriate path.  To make `vmec2pest`, in the top-level directory, execute
 ```
 make v2p
 ```
