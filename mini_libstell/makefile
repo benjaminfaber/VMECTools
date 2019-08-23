@@ -12,13 +12,13 @@ LIBSTELL_TARGET = ../$(LIB_DIR)/mini_libstell.a
 all: $(LIBSTELL_TARGET)
 
 %.o: %.f90
-	$(FC) $(FCFLAGS) -DNETCDF -c $<
+	$(FC) $(FC_FLAGS) -DNETCDF -c $<
 
 %.o: %.f
-	$(FC) $(FCFLAGS) -DNETCDF -c $<
+	$(FC) $(FC_FLAGS) -DNETCDF -c $<
 
 %.o: %.F
-	$(FC) $(FCFLAGS) -DNETCDF -c $<
+	$(FC) $(FC_FLAGS) -DNETCDF -c $<
 
 $(LIBSTELL_TARGET): $(LIBSTELL_OBJ_FILES)
 	ar rcs $(LIBSTELL_TARGET) $(LIBSTELL_OBJ_FILES)
