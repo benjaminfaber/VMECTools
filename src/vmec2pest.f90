@@ -9,7 +9,7 @@ program vmec2sfl
   use types, only: dp, pi
   use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, &
     & get_PEST_data
-  use io_core, only: read_vmec2pest_input, write_pest_file, geom_file, surfaces, surf_opt, &
+  use io_core, only: read_vmec2pest_input, write_pest_file, geom_file, surfaces, n_surf, surf_opt, &
     & x3_center, n_field_lines, n_parallel_pts, n_field_periods, x3_coord, norm_type, output_files, &
     & write_gene_geometry_file, write_cylindrical_surface, surface_quantities, n_surface_quantities, &
     & write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta, geom_id
@@ -32,7 +32,8 @@ program vmec2sfl
   call cpu_time(time1)
   infile = 'vmec2pest.inp'
   call read_vmec2pest_input(infile)
-  pest = create_PEST_Obj(geom_id,surfaces,n_field_lines,n_parallel_pts)
+
+  pest = create_PEST_Obj(geom_id,surfaces,n_surf,n_field_lines,n_parallel_pts)
   call set_PEST_reference_values(pest,norm_type)
   pest%x3_coord = x3_coord
   call compute_pest_geometry(pest,x3_center,n_field_periods,surf_opt)

@@ -32,8 +32,8 @@ contains
     
     ! Adjust the jacobian
     do idx1 = pest%ix11,pest%ix12
-      do idx2 = pest%ix31,pest%ix32
-        do idx3 = pest%ix21, pest%ix22
+      do idx2 = pest%ix21,pest%ix22
+        do idx3 = pest%ix31, pest%ix32
           pest%jac(idx2,idx3,idx1) = abs(pest%jac(idx2,idx3,idx1)/(1.0+pest%d_Lambda_d_theta_vmec(idx2,idx3,idx1)) )
         end do
       end do

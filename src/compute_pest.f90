@@ -1054,7 +1054,8 @@ contains
       pest%gradB_drift_x2(:,:,idx1) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*B_cross_grad_B_dot_grad_psi 
       pest%gradB_drift_x1(:,:,idx1) = B_cross_grad_B_dot_grad_alpha
 
-      pest%curv_drift_x1(:,:,idx1) = sign_toroidal_flux*(B_cross_grad_B_dot_grad_alpha / B + 2.0/(pest%B_ref*(pest%L_ref**2))* mu_0 * d_pressure_d_s * B_cross_grad_psi_dot_grad_alpha / (B*B)) 
+      !pest%curv_drift_x1(:,:,idx1) = sign_toroidal_flux*(B_cross_grad_B_dot_grad_alpha / B + 2.0/(pest%B_ref*(pest%L_ref**2))* mu_0 * d_pressure_d_s * B_cross_grad_psi_dot_grad_alpha / (B*B)) 
+      pest%curv_drift_x1(:,:,idx1) = sign_toroidal_flux*(B_cross_grad_B_dot_grad_alpha / B) !+ 2.0/(pest%B_ref*(pest%L_ref**2))* mu_0 * d_pressure_d_s * B_cross_grad_psi_dot_grad_alpha / (B*B)) 
       pest%curv_drift_x2(:,:,idx1) = 2.0*sign_toroidal_flux/(pest%B_ref*(pest%L_ref**2))*B_cross_grad_B_dot_grad_psi / (B)
 
       pest%d_Lambda_d_theta_vmec(:,:,idx1) = d_Lambda_d_theta_vmec

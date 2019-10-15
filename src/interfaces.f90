@@ -51,7 +51,7 @@ contains
     call c2f(options%geom_file,geom_file)
     geom_id => geom_file(1:len(geom_file))
     call c2f(options%x1,surfaces,options%nx1)
-    pest = create_PEST_Obj(geom_id,surfaces,options%nx2,options%nx3)
+    pest = create_PEST_Obj(geom_id,surfaces,options%nx1,options%nx2,options%nx3)
  
     call c2f(options%grid_type,grid_type)
     call c2f(options%x3_coord,x3_coord)
@@ -199,7 +199,7 @@ contains
     character(len=:), pointer :: geom_id
     
     geom_id => NULL()
-    pest = create_PEST_Obj(geom_id,surfaces,nx2,nx3)
+    pest = create_PEST_Obj(geom_id,surfaces,size(surfaces),nx2,nx3)
     call set_PEST_reference_values(pest,norm_type)
     pest%x3_coord = x3_coord
     call compute_pest_geometry(pest,x3_center,nfpi,0)
@@ -219,7 +219,7 @@ contains
     character(len=:), pointer :: geom_id
     
     geom_id => geom_file
-    pest = create_PEST_Obj(geom_id,surfaces,nx2,nx3)
+    pest = create_PEST_Obj(geom_id,surfaces,size(surfaces),nx2,nx3)
     call set_PEST_reference_values(pest,norm_type)
     pest%x3_coord = x3_coord
     call compute_pest_geometry(pest,x3_center,nfpi,0)

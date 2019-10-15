@@ -18,28 +18,12 @@ FC_INCS := -I$(OBJS_DIR) -J$(OBJS_DIR) -I$(LIB_DIR)
 CXX_INCS := -I$(OBJS_DIR) -I$(LIB_DIR)
 
 # Define the NetCDF libraries here, if not already in the compiler search path
-NETCDF_F_INC_DIR := /opt/gcc/netcdf-fortran-4.4.5/include
-NETCDF_F_LIB_DIR := /opt/gcc/netcdf-fortran-4.4.5/include
-NETCDF_C_INC_DIR := /opt/gcc/netcdf-c-4.6.3/lib
-NETCDF_C_LIB_DIR := /opt/gcc/netcdf-c-4.6.3/lib
-BLAS_LIB_DIR := /opt/gcc/openblas-0.3.6/lib
+NETCDF_F_INC_DIR := /opt/gcc/openmpi/netcdf-fortran-4.4.5/include
+NETCDF_F_LIB_DIR := /opt/gcc/openmpi/netcdf-fortran-4.4.5/include
+NETCDF_C_INC_DIR := /opt/gcc/netcdf-c-4.7.0/lib
+NETCDF_C_LIB_DIR := /opt/gcc/netcdf-c-4.7.0/lib
+BLAS_LIB_DIR := /opt/gcc/openblas-0.3.7/lib
 
-
-#ifeq ($(NERSC_HOST),cori)
-# makefile for NERSC Edison and Cori
-# You must first load the cray-netcdf module and python module:
-#   module load cray-netcdf python
-# It is convenient to run
-#   module unload cray-libsci
-# to avoid warning messages about libsci during compiling.
-
-#  FC := ftn
-  ## NERSC documentation recommends against specifying -O2
-  ## -mkl MUST APPEAR AT THE END!!
-#  EXTRA_COMPILE__FLAGS += -qopenmp -mkl
-#  EXTRA_LINK__FLAGS +=  -qopenmp -mkl -Wl,-ydgemm_
-  # Above, the link flag "-Wl,-ydgemm_" causes the linker to report which version of DGEMM (the BLAS3 matrix-matrix-multiplication subroutine) is used.
-#else
 FC := mpifort
 CXX := mpicxx
 COMPILE_FLAGS := -O3 -march=skylake-avx512 -fopenmp
@@ -47,7 +31,6 @@ FC_FLAGS := $(COMPILE_FLAGS) -I$(NETCDF_F_INC_DIR) -ffree-line-length-none
 CXX_FLAGS := $(COMPILE_FLAGS)
 F_LD_FLAGS := $(COMPILE_FLAGS) -L$(NETCDF_F_LIB_DIR) -L$(NETCDF_C_LIB_DIR) -L$(BLAS_LIB_DIR) -lnetcdff -lnetcdf -lopenblas
 CXX_LD_FLAGS := $(F_LD_FLAGS) -lgfortran
-#endif
 # End of system-dependent variable assignments
 
 # Promote real to double, as gs2 does:

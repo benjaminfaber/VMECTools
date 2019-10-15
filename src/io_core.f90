@@ -12,7 +12,7 @@ module io_core
   public:: read_vmec2pest_input, write_pest_file, write_cylindrical_surface, write_RZ_theta_zeta_grid, &
     & write_gene_geometry_file, write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta
   public:: tag, geom_file, outdir, x3_coord, norm_type, &
-    & n_field_lines, n_parallel_pts, x3_center, &
+    & n_surf, n_field_lines, n_parallel_pts, x3_center, &
     & n_field_periods, surfaces, surf_opt, verbose, test, &
     & output_files, surface_quantities, n_surface_quantities, geom_id
 
@@ -22,7 +22,7 @@ module io_core
     character(len=2000) :: tag, outdir
     character(len=5) :: x3_coord
     character(len=7) :: norm_type
-    integer :: n_field_lines, n_parallel_pts, surf_opt, n_surface_quantities
+    integer :: n_surf, n_field_lines, n_parallel_pts, surf_opt, n_surface_quantities
     real(dp) :: x3_center, n_field_periods
     real(dp), dimension(501) :: surfaces
     character(len=4), dimension(4) :: output_files
@@ -65,18 +65,27 @@ contains
     read(iunit,NML=parameters)
     close(iunit)
 
+    do j = 1,size(surfaces)
+      if (isnan(surfaces(j))) then
+        exit
+      else
+        if (surfaces(j) .lt. 1e-8) then 
+          exit
+        else if (surfaces(j) .gt. 1.0) then
+          exit
+        end if
+      end if
+    end do
+    n_surf = j-1
+
     j = 0
-    do while(len(trim(surface_quantities(j+1))) .lt. 32) 
-print *, len(trim(surface_quantities(j+1)))
+    do while(surface_quantities(j+1) .ne. "") 
       j = j + 1
     end do
 
     n_surface_quantities = j
-    print *, n_surface_quantities
-print *, len(trim(geom_file))
 
     geom_id => geom_file(1:len(trim(geom_file)))
-print *, geom_id
 
   end subroutine
 

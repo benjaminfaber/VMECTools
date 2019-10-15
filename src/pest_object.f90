@@ -105,34 +105,34 @@ module pest_object
 
 contains
 
-  type(PEST_Obj) function create_from_VMEC(VMEC_id,surfaces,n_field_lines,n_parallel_pts) result(pest)
+  type(PEST_Obj) function create_from_VMEC(VMEC_id,surfaces,n_surf,n_field_lines,n_parallel_pts) result(pest)
     character(len=:), intent(in), pointer :: VMEC_id
     real(dp), dimension(:), intent(in) :: surfaces
-    integer, intent(in) :: n_field_lines, n_parallel_pts
-    integer :: j, nsurf
+    integer, intent(in) :: n_surf, n_field_lines, n_parallel_pts
     logical :: verbose
 
     type(VMEC_Obj) :: vmec
     vmec = create_VMEC_Obj(VMEC_id)
 
-    j = 0
-    do while (surfaces(j+1) .gt. 1e-8)
-      j = j+1
-    end do
-
-    if (j .eq. 0) then
-      print *, "VMEC2PEST error! Cannot compute a surface at s = 0"
-      stop
-    end if 
-    nsurf = j
+!    j = 0
+!    do while (surfaces(j+1) .gt. 1e-8)
+!      j = j+1
+!      print *,surfaces(j), j
+!    end do
+!
+    !if (j .eq. 0) then
+    !  print *, "VMEC2PEST error! Cannot compute a surface at s = 0"
+    !  stop
+    !end if 
+    !nsurf = j
 
     pest%vmec = vmec
-    pest%nx1 = nsurf
+    pest%nx1 = n_surf
     pest%nx2 = n_field_lines
     pest%nx3 = n_parallel_pts+1
 
     pest%ix11 = 0
-    pest%ix12 = nsurf-1
+    pest%ix12 = n_surf-1
     pest%ix21 = 0
     pest%ix22 = n_field_lines-1
     pest%ix31 = -n_parallel_pts/2
@@ -185,7 +185,7 @@ contains
     allocate(pest%Zsurf(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
     allocate(pest%d_Lambda_d_theta_vmec(pest%ix21:pest%ix22, pest%ix31:pest%ix32, pest%ix11:pest%ix12))
 
-    pest%x1(pest%ix11:pest%ix12) = surfaces(1:j)
+    pest%x1(pest%ix11:pest%ix12) = surfaces(1:n_surf)
   end function
 
   type(PEST_Obj) function create_from_field_line_file(fl_file) result(pest)
