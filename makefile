@@ -2,6 +2,7 @@ SRC_DIR := src
 OBJS_DIR := objs
 LIB_DIR := lib
 $(shell mkdir -p $(OBJS_DIR))
+$(shell mkdir -p $(LIB_DIR))
 
 SRC_F90 := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f90' | sed "s|^\./||"))
 SRC_F := $(notdir $(shell find $(SRC_DIR) -maxdepth 1 -name '*.f' | sed "s|^\./||"))
