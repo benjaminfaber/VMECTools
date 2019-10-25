@@ -391,7 +391,8 @@ C-----------------------------------------------
 C   L o c a l   V a r i a b l e s
 C-----------------------------------------------
       INTEGER :: istat(15), i, j, k, js, m, n, n1, mn, nparts_in,
-     1           i_animec, i_flow
+     1           i_animec, i_flow, temp_int
+      CHARACTER(LEN=10)       :: temp_char
       CHARACTER(LEN=256) :: vmec_version
       LOGICAL            :: lcurr
 C-----------------------------------------------
@@ -527,7 +528,10 @@ C-----------------------------------------------
       READ (iunit, '(a)', iostat=istat(5), err=1000) mgrid_file
 
       DO js = 1, ns
-         DO mn = 1, mnmax
+        IF (version_ .ge. (9.0-eps_w)) THEN
+          READ(iunit,*,iostat=istat(7), err=1000) temp_char, temp_int
+        END IF
+        DO mn = 1, mnmax
             IF(js .eq. 1) THEN
                READ (iunit, *, iostat=istat(7), err=1000) m, n
                xm(mn) = REAL(m,rprec)

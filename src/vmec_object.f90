@@ -65,7 +65,7 @@ contains
     real(dp) :: dphi
     logical :: verbose
 
-    verbose = .false.
+    verbose = .true.
     ! If we are reading a file, then we are running outside the scope of STELLOPT,
     ! which supplies the read_wout_mod module
     if (associated(VMEC_id) .eqv. .true.) then
