@@ -18,8 +18,9 @@ program vmec2sfl
   implicit none
 
   real(dp), parameter :: pi2 = pi*pi
-  integer :: i, j
+  integer :: i, j, arg_count
   character(len=2000), target :: infile
+  character(len=2000) :: ext_file
   character(len=8) :: grid_type
 
   real(dp) :: time1, time2
@@ -30,7 +31,14 @@ program vmec2sfl
   type(PEST_Obj) :: pest
 
   call cpu_time(time1)
-  infile = 'vmec2pest.inp'
+
+  arg_count = command_argument_count()
+  if (arg_count .eq. 1) then
+    call get_command_argument(1,ext_file)
+    infile = trim(ext_file)
+  else
+    infile = 'vmec2pest.inp'
+  end if
   call read_vmec2pest_input(infile)
 
   pest = create_PEST_Obj(geom_id,surfaces,n_surf,n_field_lines,n_parallel_pts)
