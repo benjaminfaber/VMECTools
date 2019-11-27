@@ -36,7 +36,12 @@ endif
 
 FC := mpifort
 CXX := mpicxx
-COMPILE_FLAGS := -O3 -march=native -fopenmp
+ifneq ($(DOCKER_ENV_FILE),/.dockerenv)
+MARCH_FLAG = native
+else
+MARCH_FLAG = x86_64
+endif
+COMPILE_FLAGS := -O3 -march=$(MARCH_FLAG) -fopenmp
 FC_FLAGS := $(COMPILE_FLAGS) -I$(NETCDF_F_INC_DIR) -ffree-line-length-none
 CXX_FLAGS := $(COMPILE_FLAGS)
 F_LD_FLAGS := $(COMPILE_FLAGS) -L$(NETCDF_F_LIB_DIR) -L$(NETCDF_C_LIB_DIR) -L$(BLAS_LIB_DIR) -lnetcdff -lnetcdf -lopenblas
