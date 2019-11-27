@@ -36,7 +36,9 @@ contains
     implicit none
     character(len=256), intent(in) :: filename
     character(len=:), allocatable, target :: temp
+    character(len=32) :: temp_str
     integer :: iunit, j
+    logical :: end_found
 
     namelist /parameters/ tag, geom_file, outdir, x3_coord, norm_type, &
       & n_field_lines, n_parallel_pts, x3_center, n_field_periods, &
@@ -58,7 +60,7 @@ contains
     verbose = .false.
     test = .false.
     output_files(1) = 'pest'
-    surface_quantities(1) = "" 
+    surface_quantities = "stop" 
 
     ! Add line to ensure iunit is already not open
     open(newunit=iunit,file=trim(filename),status='old',action='read')
@@ -79,11 +81,20 @@ contains
     n_surf = j-1
 
     j = 0
-    do while(surface_quantities(j+1) .ne. "") 
-      j = j + 1
-    end do
+    block
+      character(:), allocatable :: temp_str
+      end_found = .false.
+      do while(end_found .eqv. .false.)
+        j = j + 1
+        temp_str = trim(surface_quantities(j))
+        if (temp_str == 'stop') then
+          end_found = .true.
+        end if
+      end do
+    end block
 
-    n_surface_quantities = j
+    n_surface_quantities = j-1
+    write(*,*) n_surface_quantities
 
     geom_id => geom_file(1:len(trim(geom_file)))
 
@@ -146,7 +157,6 @@ contains
     write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
     write (iunit,'(A,I6)') 'n_pol = ', ceiling(n_field_periods/pest%vmec%nfp)
     write (iunit,'(A)') '/'
-    write (iunit,'(9(A23,2x))') '#theta','g11','g12','g22','g13','g23','g33','|B|','sqrt(g)', 'K2', 'K1', 'dBdz' 
     do k=pest%ix31,pest%ix32-1
       do j=pest%ix21,pest%ix22
         write(iunit,'(9(ES23.12E3,2x))') pest%g11(j,k,idx1), pest%g12(j,k,idx1), pest%g22(j,k,idx1), &

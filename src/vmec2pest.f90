@@ -70,12 +70,15 @@ program vmec2sfl
   if (n_surface_quantities .gt. 0) then
     allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
     do i=1,n_surface_quantities
-      do j=pest%ix11,pest%ix12
-        call get_PEST_data(pest,j,surface_quantities(i),surf_data)
-        call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
-        call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
-        call write_surface_quantity_theta_zeta(pest,j,surface_quantities(i),surf_data)
-      end do
+      if (trim(surface_quantities(i)) .ne. "") then
+        do j=pest%ix11,pest%ix12
+          write(*,*) trim(surface_quantities(i)), len_trim(surface_quantities(i))
+          call get_PEST_data(pest,j,surface_quantities(i),surf_data)
+          call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
+          call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
+          call write_surface_quantity_theta_zeta(pest,j,surface_quantities(i),surf_data)
+        end do
+      end if
     end do
     deallocate(surf_data)
   end if 
@@ -95,3 +98,4 @@ program vmec2sfl
   write(6,"(A,F8.4,A)") "vmec2sfl completed in ",time2-time1," seconds"
 
 end program
+
