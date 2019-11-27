@@ -39,7 +39,7 @@ CXX := mpicxx
 ifneq ($(DOCKER_ENV_FILE),/.dockerenv)
 MARCH_FLAG = native
 else
-MARCH_FLAG = x86_64
+MARCH_FLAG = x86-64
 endif
 COMPILE_FLAGS := -O3 -march=$(MARCH_FLAG) -fopenmp
 FC_FLAGS := $(COMPILE_FLAGS) -I$(NETCDF_F_INC_DIR) -ffree-line-length-none
