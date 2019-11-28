@@ -151,6 +151,7 @@ contains
     open(newunit=iunit,file=trim(filename))
     write (iunit,'(A)') '&parameters'
     write (iunit,'(A,F12.7)') '!s0 = ', pest%x1(idx1)
+    write (iunit,'(A,F12.7)') '!alpha0 = ', pest%x2(pest%ix21)
     write (iunit,'(A,F12.7)') '!minor_r = ', pest%L_ref
     write (iunit,'(A,F12.7)') '!Bref = ', pest%B_ref
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
@@ -317,42 +318,50 @@ contains
     write (iunit_tz,'(5(A12))') '#theta_index', 'theta', 'zeta_index', 'zeta', trim(data_name)
 
     do k=pest%ix31,pest%ix32-1
-      do j=pest%ix21,pest%ix22
-        if (j .lt. pest%ix22) then 
-          jp1 = j+1 
-        else 
-          jp1 = pest%ix21
-        end if
-        theta = 0.
-        theta_j = pest%x2(j) + pest%iota(idx1)*prefac*pest%x3(k,idx1)
-        theta_jp1 = pest%x2(jp1) + pest%iota(idx1)*prefac*pest%x3(k,idx1)
-        if (theta_j .lt. (0.0 - eps)) then
-          theta_j = pi2 + theta_j
-        end if
-        if (theta_jp1 .lt. (0.0 - eps)) then 
-          theta_jp1 = pi2 + theta_jp1
-        end if
-        i = 0
-        do while (theta .lt. (theta_j - eps))
-          i = i + 1
-          theta = real(i)*pi2/real(pest%nx2)
-        end do
-        theta_j = mod(theta_j,pi2)
-        theta_jp1 = mod(theta_jp1,pi2)
+      if (pest%nx2 .gt. 1) then
+        do j=pest%ix21,pest%ix22
+          if (j .lt. pest%ix22) then 
+            jp1 = j+1 
+          else 
+            jp1 = pest%ix21
+          end if
+          theta = 0.
+          theta_j = pest%x2(j) + pest%iota(idx1)*prefac*pest%x3(k,idx1)
+          theta_jp1 = pest%x2(jp1) + pest%iota(idx1)*prefac*pest%x3(k,idx1)
+          if (theta_j .lt. (0.0 - eps)) then
+            theta_j = pi2 + theta_j
+          end if
+          if (theta_jp1 .lt. (0.0 - eps)) then 
+            theta_jp1 = pi2 + theta_jp1
+          end if
+          i = 0
+          do while (theta .lt. (theta_j - eps))
+            i = i + 1
+            theta = real(i)*pi2/real(pest%nx2)
+          end do
+          theta_j = mod(theta_j,pi2)
+          theta_jp1 = mod(theta_jp1,pi2)
 
-        theta_index = mod(i,pest%nx2)
-        theta_interp = real(theta_index)*pi2/real(pest%nx2)
-        dt1 = theta_interp - theta_j
-        if (dt1 .lt. -eps) then
-          dt1 = dt1 + pi2
-        end if
-        dt2 = theta_jp1 - theta_interp
-        if (dt2 .lt. -eps) then
-          dt2 = dt2 + pi2
-        end if       
-        surf_interp = real(pest%nx2)/pi2*(dt2*surf_data(j,k) + dt1*surf_data(jp1,k))
-        write (iunit_tz,'(2(I5,2x,F12.7,2x),F12.7)') theta_index+1, theta_interp, k+pest%nx3/2+1, prefac*pest%x3(k,idx1), surf_interp
-      end do
+          theta_index = mod(i,pest%nx2)
+          theta_interp = real(theta_index)*pi2/real(pest%nx2)
+          dt1 = theta_interp - theta_j
+          if (dt1 .lt. -eps) then
+            dt1 = dt1 + pi2
+          end if
+          dt2 = theta_jp1 - theta_interp
+          if (dt2 .lt. -eps) then
+            dt2 = dt2 + pi2
+          end if       
+          surf_interp = real(pest%nx2)/pi2*(dt2*surf_data(j,k) + dt1*surf_data(jp1,k))
+          write (iunit_tz,'(2(I5,2x,F12.7,2x),F12.7)') theta_index+1, theta_interp, k+pest%nx3/2+1, prefac*pest%x3(k,idx1), surf_interp
+        end do
+      else
+        j = 1
+        theta_index = 0
+        theta_interp = pest%x2(j) + pest%iota(idx1)*prefac*pest%x3(k,idx1)
+
+        write (iunit_tz,'(2(I5,2x,F12.7,2x),F12.7)') theta_index+1, theta_interp, k+pest%nx3/2+1, prefac*pest%x3(k,idx1),surf_data(j,k)
+      end if
       write (iunit_tz,'(A)') " "
     end do
 

@@ -72,7 +72,6 @@ program vmec2sfl
     do i=1,n_surface_quantities
       if (trim(surface_quantities(i)) .ne. "") then
         do j=pest%ix11,pest%ix12
-          write(*,*) trim(surface_quantities(i)), len_trim(surface_quantities(i))
           call get_PEST_data(pest,j,surface_quantities(i),surf_data)
           call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
           call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
