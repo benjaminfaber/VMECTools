@@ -25,7 +25,7 @@ module compute_pest
 
 contains
 
-  subroutine compute_pest_geometry(pest,x3_center,&
+  subroutine compute_pest_geometry(pest,x2_center,x3_center,&
     & number_of_field_periods_to_include,vmec_surface_option)
     implicit none
     !*********************************************************************
@@ -41,7 +41,7 @@ contains
 
     ! The pest%x3 domain is centered at x3_center. Setting x3_center = 2*pi*N/nfp for any integer N should
     ! yield identical results to setting x3_center = 0, where nfp is the number of field periods (as in VMEC).
-    real(dp), intent(in) :: x3_center
+    real(dp), intent(in) :: x2_center, x3_center
 
     ! If number_of_field_periods_to_include is > 0, then this parameter does what you think:
     ! the extent of the toroidal in pest%x3 will be 2*pi*number_of_field_periods_to_include/nfp.
@@ -224,7 +224,7 @@ contains
     ! Set up the coordinate grids.
     !*********************************************************************
 
-    pest%x2 = [( (j*2*pi) / pest%nx2, j=pest%ix21, pest%ix22 )]
+    pest%x2 = [( mod(x2_center + (j*2*pi) / pest%nx2, 2.0*pi), j=pest%ix21, pest%ix22 )]
 
 
     number_of_field_periods_to_include_final = number_of_field_periods_to_include

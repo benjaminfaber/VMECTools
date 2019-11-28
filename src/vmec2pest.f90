@@ -10,7 +10,7 @@ program vmec2sfl
   use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, &
     & get_PEST_data
   use io_core, only: read_vmec2pest_input, write_pest_file, geom_file, surfaces, n_surf, surf_opt, &
-    & x3_center, n_field_lines, n_parallel_pts, n_field_periods, x3_coord, norm_type, output_files, &
+    & x2_center, x3_center, n_field_lines, n_parallel_pts, n_field_periods, x3_coord, norm_type, output_files, &
     & write_gene_geometry_file, write_cylindrical_surface, surface_quantities, n_surface_quantities, &
     & write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta, geom_id
   use compute_pest, only: compute_pest_geometry
@@ -44,7 +44,7 @@ program vmec2sfl
   pest = create_PEST_Obj(geom_id,surfaces,n_surf,n_field_lines,n_parallel_pts)
   call set_PEST_reference_values(pest,norm_type)
   pest%x3_coord = x3_coord
-  call compute_pest_geometry(pest,x3_center,n_field_periods,surf_opt)
+  call compute_pest_geometry(pest,x2_center,x3_center,n_field_periods,surf_opt)
   grid_type = 'gene'
   call set_normalizations(pest,grid_type) 
   do i=1,4 

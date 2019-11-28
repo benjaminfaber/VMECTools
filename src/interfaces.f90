@@ -26,7 +26,7 @@ module interfaces
       type(c_ptr) :: norm_type
       integer(c_int) :: nx1, nx2, nx3
       type(c_ptr) :: x1
-      real(c_double) :: x3_center, nfpi
+      real(c_double) :: x2_center, x3_center, nfpi
     end type
 
   interface c2f
@@ -59,7 +59,7 @@ contains
 
     call set_PEST_reference_values(pest,norm_type)
     pest%x3_coord = x3_coord
-    call compute_pest_geometry(pest,options%x3_center,options%nfpi,surf_opt)
+    call compute_pest_geometry(pest,options%x2_center,options%x3_center,options%nfpi,surf_opt)
     call set_normalizations(pest,trim(grid_type))
 
     deallocate(geom_file,grid_type,norm_type,x3_coord,surfaces)
@@ -191,10 +191,10 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Interface for calling vmec2pest from STELLOPT
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine vmec2pest_stellopt_interface(surfaces,nx2,nx3,x3_center,x3_coord,nfpi,norm_type,grid_type)
+  subroutine vmec2pest_stellopt_interface(surfaces,nx2,nx3,x2_center,x3_center,x3_coord,nfpi,norm_type,grid_type)
     character(*), intent(in) :: x3_coord, norm_type, grid_type
     real(dp), dimension(:), intent(in) :: surfaces
-    real(dp), intent(in) :: x3_center, nfpi
+    real(dp), intent(in) :: x2_center, x3_center, nfpi
     integer, intent(in) :: nx2, nx3 
     character(len=:), pointer :: geom_id
     
@@ -202,7 +202,7 @@ contains
     pest = create_PEST_Obj(geom_id,surfaces,size(surfaces),nx2,nx3)
     call set_PEST_reference_values(pest,norm_type)
     pest%x3_coord = x3_coord
-    call compute_pest_geometry(pest,x3_center,nfpi,0)
+    call compute_pest_geometry(pest,x2_center,x3_center,nfpi,0)
     call set_normalizations(pest,grid_type) 
     
   end subroutine
@@ -210,11 +210,11 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Interface for calling vmec2pest from Fortran
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine vmec2pest_interface(geom_file,surfaces,nx2,nx3,x3_center,x3_coord,nfpi,norm_type,grid_type)
+  subroutine vmec2pest_interface(geom_file,surfaces,nx2,nx3,x2_center,x3_center,x3_coord,nfpi,norm_type,grid_type)
     character(*), intent(in), target :: geom_file
     character(*), intent(in) :: x3_coord, norm_type, grid_type
     real(dp), dimension(:), intent(in) :: surfaces
-    real(dp), intent(in) :: x3_center, nfpi
+    real(dp), intent(in) :: x2_center, x3_center, nfpi
     integer, intent(in) :: nx2, nx3 
     character(len=:), pointer :: geom_id
     
@@ -222,7 +222,7 @@ contains
     pest = create_PEST_Obj(geom_id,surfaces,size(surfaces),nx2,nx3)
     call set_PEST_reference_values(pest,norm_type)
     pest%x3_coord = x3_coord
-    call compute_pest_geometry(pest,x3_center,nfpi,0)
+    call compute_pest_geometry(pest,x2_center,x3_center,nfpi,0)
     call set_normalizations(pest,grid_type) 
     
 
