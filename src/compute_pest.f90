@@ -478,13 +478,13 @@ contains
       select case(trim(pest%x3_coord))
         case('zeta')
           number_of_field_periods_to_include_final = pest%x3_max_interval
-          pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+          pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*pest%x3_max_interval)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
         case('theta')
-          number_of_field_periods_to_include_final = pest%safety_factor_q(idx1)*pest%x3_max_interval
-          pest%x3(:,idx1) = [( pest%safety_factor_q(idx1)*(x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
+          number_of_field_periods_to_include_final = pest%safety_factor_q(idx1)*pest%x3_max_interval*pest%vmec%nfp
+          pest%x3(:,idx1) = [( pest%safety_factor_q(idx1)*(x3_center + 2.0*(pi*j*pest%x3_max_interval)/(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
         case default
           number_of_field_periods_to_include_final = pest%x3_max_interval
-          pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
+          pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*pest%x3_max_interval)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
       end select
 
 
