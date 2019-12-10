@@ -12,7 +12,7 @@ module io_core
   public:: read_vmec2pest_input, write_pest_file, write_cylindrical_surface, write_RZ_theta_zeta_grid, &
     & write_gene_geometry_file, write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta
   public:: tag, geom_file, outdir, x3_coord, norm_type, &
-    & n_surf, n_field_lines, n_parallel_pts, x2_center, x3_center, &
+    & n_surf, n_field_lines, n_parallel_pts, n_pol, x2_center, x3_center, &
     & n_field_periods, surfaces, surf_opt, verbose, test, &
     & output_files, surface_quantities, n_surface_quantities, geom_id
 
@@ -22,7 +22,7 @@ module io_core
     character(len=2000) :: tag, outdir
     character(len=5) :: x3_coord
     character(len=7) :: norm_type
-    integer :: n_surf, n_field_lines, n_parallel_pts, surf_opt, n_surface_quantities
+    integer :: n_surf, n_field_lines, n_parallel_pts, surf_opt, n_surface_quantities, n_pol
     real(dp) :: x2_center, x3_center, n_field_periods
     real(dp), dimension(501) :: surfaces
     character(len=4), dimension(4) :: output_files
@@ -54,7 +54,8 @@ contains
     x2_center = 0.0
     x3_center = 0.0  
 
-    n_field_periods = 1.0 ! Number of field periods to calculate
+    n_field_periods = -1.0 ! Number of field periods to calculate
+    n_pol = -1
    
     surfaces(1) = 0.5
     surf_opt = 0 
