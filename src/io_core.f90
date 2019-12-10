@@ -82,6 +82,7 @@ contains
     n_surf = j-1
 
     j = 0
+
     block
       character(:), allocatable :: temp_str
       end_found = .false.
@@ -125,7 +126,7 @@ contains
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
     write (iunit,'(A,F12.7)') 'shat = ', pest%shat(idx1)
     write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
-    write (iunit,'(A,I6)') 'n_pol = ', ceiling(n_field_periods/pest%vmec%nfp)
+    write (iunit,'(A,I6)') 'n_pol = ', ceiling(pest%safety_factor_q(idx1)*n_field_periods/pest%vmec%nfp)
     write (iunit,'(A)') '/'
     write (iunit,'(9(A23,2x))') '#theta','g11','g12','g22','g13','g23','g33','|B|','sqrt(g)', 'K2', 'K1', 'dBdz' 
     do k=pest%ix31,pest%ix32-1
@@ -157,7 +158,7 @@ contains
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
     write (iunit,'(A,F12.7)') 'shat = ', pest%shat(idx1)
     write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
-    write (iunit,'(A,I6)') 'n_pol = ', ceiling(n_field_periods/pest%vmec%nfp)
+    write (iunit,'(A,I6)') 'n_pol = ', ceiling(pest%safety_factor_q(idx1)*n_field_periods/pest%vmec%nfp)
     write (iunit,'(A)') '/'
     do k=pest%ix31,pest%ix32-1
       do j=pest%ix21,pest%ix22
@@ -270,18 +271,18 @@ contains
 
     do k=pest%ix31,pest%ix32-1
       do j=pest%ix21,pest%ix22
-        write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
+        write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(-prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(-prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
       end do
       j=pest%ix21
-      write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
+      write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(-prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(-prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
       write (iunit_xyz,'(A)') " "
     end do
     k=pest%ix31
     do j=pest%ix21,pest%ix22
-      write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
+      write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(-prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(-prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
     end do
     j=pest%ix21
-    write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
+    write (iunit_xyz,'(4(F12.7,2x))') pest%Rsurf(j,k,idx1)*cos(-prefac*pest%x3(k,idx1)), pest%Rsurf(j,k,idx1)*sin(-prefac*pest%x3(k,idx1)), pest%Zsurf(j,k,idx1), surf_data(j,k)
     write (iunit_xyz,'(A)') " "
 
     close(iunit_xyz)

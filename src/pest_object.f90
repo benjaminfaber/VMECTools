@@ -50,13 +50,13 @@ module pest_object
     ! Typically, this is x1 = s = psi_toroidal/psi_edge 
     real(dp), dimension(:), allocatable :: x1
 
-    ! On exit, alpha holds the grid points in the second coordinate (field line label)
-    ! Typically, this is alpha = theta_p - iota * zeta, where zeta is the PEST (geometric) toroidal angle
+    ! On exit, x2 holds the grid points in the second coordinate (field line label)
+    ! Typically, this is x2 = alpha = theta_p - iota * zeta, where zeta is the PEST (geometric) toroidal angle
     ! and theta_p is the PEST poloidal angle
     real(dp), dimension(:), allocatable :: x2
 
-    ! On exit, zeta holds the grid points in the third coordinate (field line following coordinate)
-    ! Typically, this is zeta = zeta, where zeta is the PEST (geometric) toroidal angle
+    ! On exit, x3 holds the grid points in the third coordinate (field line following coordinate)
+    ! Typically, this is x3 = zeta, where zeta is the PEST (geometric) toroidal angle
     real(dp), dimension(:,:), allocatable :: x3
 
     ! VMEC supplies the normalized toroidal flux, thus it is natural to use the

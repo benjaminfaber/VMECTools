@@ -5,7 +5,7 @@
 ! Created June 2019
 !******************************************************************************
 
-program vmec2sfl
+program vmec2pest
   use types, only: dp, pi
   use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, &
     & get_PEST_data

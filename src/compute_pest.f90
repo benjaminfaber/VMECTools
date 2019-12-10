@@ -19,7 +19,7 @@ module compute_pest
   implicit none
 
   public :: compute_pest_geometry
-  
+    
   private
 
 
@@ -1264,6 +1264,4 @@ contains
   end subroutine
 
   ! --------------------------------------------------------------------------
-
-
 end module
