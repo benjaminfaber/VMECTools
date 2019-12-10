@@ -26,7 +26,7 @@ module compute_pest
 contains
 
   subroutine compute_pest_geometry(pest,x2_center,x3_center,&
-    & number_of_field_periods_to_include,vmec_surface_option)
+    & number_of_field_periods_to_include_final,vmec_surface_option)
     implicit none
     !*********************************************************************
     ! Input parameters
@@ -46,7 +46,7 @@ contains
     ! If number_of_field_periods_to_include is > 0, then this parameter does what you think:
     ! the extent of the toroidal in pest%x3 will be 2*pi*number_of_field_periods_to_include/nfp.
     ! If number_of_field_periods_to_include is <= 0, the entire 2*pi toroidal domain will be included.
-    real(dp), intent(in) :: number_of_field_periods_to_include
+    real(dp), intent(out) :: number_of_field_periods_to_include_final
 
     type(PEST_Obj), intent(inout) :: pest
 
@@ -59,7 +59,7 @@ contains
     integer :: j, idx, idx1, idx3, iztemp, idx2, which_surface, isurf, m, n, imn, imn_nyq, ns
     real(dp) :: angle, sin_angle, cos_angle, temp 
     integer :: fzero_flag, sign_toroidal_flux
-    real(dp) :: number_of_field_periods_to_include_final
+    !real(dp) :: number_of_field_periods_to_include_final
     real(dp) :: ds, d_pressure_d_s, d_iota_d_s, scale_factor, dphi, min_dr2
     real(dp) :: theta_vmec_min, theta_vmec_max, sqrt_s
     real(dp) :: root_solve_absolute_tolerance, root_solve_relative_tolerance
@@ -226,12 +226,26 @@ contains
 
     pest%x2 = [( mod(x2_center + (j*2*pi) / pest%nx2, 2.0*pi), j=pest%ix21, pest%ix22 )]
 
-
-    number_of_field_periods_to_include_final = number_of_field_periods_to_include
-    if (number_of_field_periods_to_include <= 0) then
-       number_of_field_periods_to_include_final = pest%vmec%nfp
-       if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",pest%vmec%nfp
+    if (pest%x3_max_interval .le. 0) then
+      select case(trim(pest%x3_coord))
+        case('zeta')
+          pest%x3_max_interval = pest%vmec%nfp
+          if (verbose) print *,"  Since n_field_periods was <= 0, it is being reset to nfp =",pest%vmec%nfp
+        case('theta')
+          pest%x3_max_interval = 1.0
+          if (verbose) print *,"  Since n_pol was <= 0, it is being reset to n_pol = 1"
+        case default
+          pest%x3_max_interval = pest%vmec%nfp
+          if (verbose) print *,"  Since n_field_periods was <= 0, it is being reset to nfp =",pest%vmec%nfp
+      end select
     end if
+
+
+    !number_of_field_periods_to_include_final = number_of_field_periods_to_include
+    !if (number_of_field_periods_to_include <= 0) then
+    !   number_of_field_periods_to_include_final = pest%vmec%nfp
+    !   if (verbose) print *,"  Since number_of_field_periods_to_include was <= 0, it is being reset to nfp =",pest%vmec%nfp
+    !end if
 
 
 
@@ -463,10 +477,13 @@ contains
       !*********************************************************************
       select case(trim(pest%x3_coord))
         case('zeta')
+          number_of_field_periods_to_include_final = pest%x3_max_interval
           pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
         case('theta')
+          number_of_field_periods_to_include_final = pest%safety_factor_q(idx1)*pest%x3_max_interval
           pest%x3(:,idx1) = [( pest%safety_factor_q(idx1)*(x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1))), j=pest%ix31,pest%ix32 )]
         case default
+          number_of_field_periods_to_include_final = pest%x3_max_interval
           pest%x3(:,idx1) = [( x3_center + 2.0*(pi*j*number_of_field_periods_to_include_final)/(pest%vmec%nfp*(pest%nx3-1)), j=pest%ix31,pest%ix32 )]
       end select
 

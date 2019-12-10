@@ -67,6 +67,7 @@ module pest_object
     ! is performed using the zeta coordinate
 
     character(len=5) :: x3_coord
+    real(dp) :: x3_max_interval
 
     ! Arrays that contain the geometric elements on the surface
     real(dp), dimension(:,:,:), allocatable :: bmag  ! Magnitude of B (|B|)

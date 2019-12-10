@@ -10,7 +10,7 @@ program vmec2pest
   use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, &
     & get_PEST_data
   use io_core, only: read_vmec2pest_input, write_pest_file, geom_file, surfaces, n_surf, surf_opt, &
-    & x2_center, x3_center, n_field_lines, n_parallel_pts, n_field_periods, x3_coord, norm_type, output_files, &
+    & x2_center, x3_center, n_field_lines, n_parallel_pts, n_field_periods, n_pol, x3_coord, norm_type, output_files, &
     & write_gene_geometry_file, write_cylindrical_surface, surface_quantities, n_surface_quantities, &
     & write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta, geom_id
   use compute_pest, only: compute_pest_geometry
@@ -23,7 +23,7 @@ program vmec2pest
   character(len=2000) :: ext_file
   character(len=8) :: grid_type
 
-  real(dp) :: time1, time2
+  real(dp) :: time1, time2, n_field_periods_final
   !real(dp), dimension(:), allocatable :: line_data
   real(dp), dimension(:,:), allocatable :: surf_data
   !real(dp), dimension(:,:,:), allocatable :: vol_data
@@ -44,18 +44,23 @@ program vmec2pest
   pest = create_PEST_Obj(geom_id,surfaces,n_surf,n_field_lines,n_parallel_pts)
   call set_PEST_reference_values(pest,norm_type)
   pest%x3_coord = x3_coord
-  call compute_pest_geometry(pest,x2_center,x3_center,n_field_periods,surf_opt)
+  if (trim(pest%x3_coord) .eq. 'theta') then
+    pest%x3_max_interval = real(n_pol)
+  else
+    pest%x3_max_interval = n_field_periods
+  end if
+  call compute_pest_geometry(pest,x2_center,x3_center,n_field_periods_final,surf_opt)
   grid_type = 'gene'
   call set_normalizations(pest,grid_type) 
   do i=1,4 
     select case (trim(output_files(i)))
       case('pest')
         do j=pest%ix11,pest%ix12
-          call write_pest_file(pest,j)
+          call write_pest_file(pest,j,n_field_periods_final)
         end do
       case('gene')
         do j=pest%ix11,pest%ix12
-          call write_gene_geometry_file(pest,j)
+          call write_gene_geometry_file(pest,j,n_field_periods_final)
         end do
       case('surf')
         do j=pest%ix11,pest%ix12

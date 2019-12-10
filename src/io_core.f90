@@ -41,7 +41,7 @@ contains
     logical :: end_found
 
     namelist /parameters/ tag, geom_file, outdir, x3_coord, norm_type, &
-      & n_field_lines, n_parallel_pts, x2_center, x3_center, n_field_periods, &
+      & n_field_lines, n_parallel_pts, x2_center, x3_center, n_field_periods, n_pol, &
       & surfaces, surf_opt, verbose, test, output_files, surface_quantities
     ! Set default values of parameters
     tag = ''
@@ -103,10 +103,11 @@ contains
 
   end subroutine
 
-  subroutine write_pest_file(pest,idx1)
+  subroutine write_pest_file(pest,idx1,n_field_periods_final)
     implicit none
     integer, intent(in) :: idx1
     type(PEST_Obj), intent(in) :: pest
+    real(dp), intent(in) :: n_field_periods_final
     integer :: j, k, iunit
     real(dp) :: prefac
     character(len=2000) :: filename
@@ -127,7 +128,8 @@ contains
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
     write (iunit,'(A,F12.7)') 'shat = ', pest%shat(idx1)
     write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
-    write (iunit,'(A,I6)') 'n_pol = ', ceiling(pest%safety_factor_q(idx1)*n_field_periods/pest%vmec%nfp)
+    write (iunit,'(A,F8.3)') 'n_pol = ', pest%safety_factor_q(idx1)*n_field_periods_final/pest%vmec%nfp
+    write (iunit,'(A,F8.3)') 'n_tor = ', n_field_periods_final/pest%vmec%nfp
     write (iunit,'(A)') '/'
     write (iunit,'(9(A23,2x))') '#theta','g11','g12','g22','g13','g23','g33','|B|','sqrt(g)', 'K2', 'K1', 'dBdz' 
     do k=pest%ix31,pest%ix32-1
@@ -140,10 +142,11 @@ contains
 
   end subroutine
 
-  subroutine write_gene_geometry_file(pest,idx1)
+  subroutine write_gene_geometry_file(pest,idx1,n_field_periods_final)
     implicit none
     integer, intent(in) :: idx1
     type(PEST_Obj), intent(in) :: pest
+    real(dp), intent(in) :: n_field_periods_final
     integer :: j, k, iunit
     character(len=2000) :: filename
     character(len=2000) :: filenumber
@@ -159,7 +162,7 @@ contains
     write (iunit,'(A,F12.7)') 'q0 = ', pest%safety_factor_q(idx1)
     write (iunit,'(A,F12.7)') 'shat = ', pest%shat(idx1)
     write (iunit,'(A,I6)') 'gridpoints = ', pest%nx3-1
-    write (iunit,'(A,I6)') 'n_pol = ', ceiling(pest%safety_factor_q(idx1)*n_field_periods/pest%vmec%nfp)
+    write (iunit,'(A,I6)') 'n_pol = ', ceiling(pest%safety_factor_q(idx1)*n_field_periods_final/pest%vmec%nfp)
     write (iunit,'(A)') '/'
     do k=pest%ix31,pest%ix32-1
       do j=pest%ix21,pest%ix22
