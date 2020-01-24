@@ -6,13 +6,15 @@
 !******************************************************************************
 
 program vmec2pest
+  use hdf5
   use types, only: dp, pi
   use pest_object, only: PEST_Obj, create_PEST_Obj, destroy_PEST_Obj, set_PEST_reference_values, &
     & get_PEST_data
   use io_core, only: read_vmec2pest_input, write_pest_file, geom_file, surfaces, n_surf, surf_opt, &
     & x2_center, x3_center, n_field_lines, n_parallel_pts, n_field_periods, n_pol, x3_coord, norm_type, output_files, &
     & write_gene_geometry_file, write_cylindrical_surface, surface_quantities, n_surface_quantities, &
-    & write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta, geom_id
+    & write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta, geom_id, &
+    & create_mapping_file_hdf5, close_mapping_file_hdf5, write_mapping_file_info_hdf5, write_mapping_file_surf_data_hdf5
   use compute_pest, only: compute_pest_geometry
   use normalizations, only: set_normalizations
   implicit none
@@ -29,6 +31,8 @@ program vmec2pest
   !real(dp), dimension(:,:,:), allocatable :: vol_data
  
   type(PEST_Obj) :: pest
+
+  integer(hid_t) :: fid
 
   call cpu_time(time1)
 
@@ -73,7 +77,11 @@ program vmec2pest
     end select 
   end do
   if (n_surface_quantities .gt. 0) then
+    call create_mapping_file_hdf5("test.h5",pest,fid)
     allocate(surf_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32))
+    do j=pest%ix11,pest%ix12
+      call write_mapping_file_info_hdf5(fid,pest,j)
+    end do
     do i=1,n_surface_quantities
       if (trim(surface_quantities(i)) .ne. "") then
         do j=pest%ix11,pest%ix12
@@ -81,10 +89,12 @@ program vmec2pest
           call write_surface_quantity_cyl(pest,j,surface_quantities(i),surf_data)
           call write_surface_quantity_xyz(pest,j,surface_quantities(i),surf_data)
           call write_surface_quantity_theta_zeta(pest,j,surface_quantities(i),surf_data)
+          call write_mapping_file_surf_data_hdf5(fid,pest,j,surface_quantities(i),surf_data)
         end do
       end if
     end do
     deallocate(surf_data)
+    call close_mapping_file_hdf5(fid)
   end if 
 !  if (n_volume_quantities .gt. 0) then
 !    allocate(vol_data(pest%ix21:pest%ix22,pest%ix31:pest%ix32,pest%ix11:pest%ix12))

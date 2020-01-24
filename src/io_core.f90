@@ -7,10 +7,12 @@
 module io_core
   use types, only: dp, pi
   use pest_object, only: PEST_Obj
+  use hdf5
   implicit none
 
   public:: read_vmec2pest_input, write_pest_file, write_cylindrical_surface, write_RZ_theta_zeta_grid, &
-    & write_gene_geometry_file, write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta
+    & write_gene_geometry_file, write_surface_quantity_cyl, write_surface_quantity_xyz, write_surface_quantity_theta_zeta, &
+    & create_mapping_file_hdf5, close_mapping_file_hdf5, write_mapping_file_info_hdf5, write_mapping_file_surf_data_hdf5
   public:: tag, geom_file, outdir, x3_coord, norm_type, &
     & n_surf, n_field_lines, n_parallel_pts, n_pol, x2_center, x3_center, &
     & n_field_periods, surfaces, surf_opt, verbose, test, &
@@ -433,4 +435,209 @@ contains
     close(iunit_R)
     close(iunit_Z)
   end subroutine
+
+  subroutine create_mapping_file_hdf5(filename,pest,file_id)
+    character(len=*), intent(in) :: filename
+    type(PEST_Obj), intent(in) :: pest
+    integer(hid_t), intent(out) :: file_id
+
+    integer(hid_t) :: space_id, data_id
+    integer :: ierr
+    integer, parameter :: one = 1
+    integer(hsize_t), dimension(1) :: one_size = (/ 1 /)
+
+    call h5open_f(ierr)
+
+    call h5fcreate_f(trim(filename), H5F_ACC_TRUNC_F, file_id, ierr)
+
+    call h5screate_simple_f(one, one_size, space_id, ierr)
+    call h5dcreate_f(file_id, "B_ref", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, pest%B_ref, one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "Major R", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, pest%major_R, one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "Minor r", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, pest%minor_r, one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+    call h5sclose_f(space_id, ierr)
+
+  end subroutine
+
+  subroutine close_mapping_file_hdf5(file_id)
+    integer(hid_t), intent(in) :: file_id
+    integer :: ierr
+
+    call h5fclose_f(file_id,ierr)
+  end subroutine
+
+  subroutine write_mapping_file_info_hdf5(file_id,pest,idx1)
+    integer(hid_t), intent(in) :: file_id
+    type(PEST_Obj), intent(in) :: pest
+    integer, intent(in) :: idx1
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: theta_coords
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: zeta_coords
+    integer, dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: theta_indices
+    integer, dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: zeta_indices
+    integer :: i, j, jp1, k, iunit_tz, theta_index, ierr
+    real(dp) :: theta, theta_j, theta_jp1, theta_interp
+    real(dp), parameter :: pi2 = pi+pi
+    real(dp), parameter :: eps = 1e-8
+
+    integer(hid_t) :: data_id, space_id
+    integer, parameter :: rank = 2
+    integer(hsize_t), dimension(2) :: dims
+    integer, parameter :: one = 1
+    integer(hsize_t), dimension(1) :: one_size = (/ 1 /)
+
+    call h5screate_simple_f(one, one_size, space_id, ierr)
+    call h5dcreate_f(file_id, "s0", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, pest%x1(idx1), one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "iota", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, pest%iota(idx1), one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "shat", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, pest%shat(idx1), one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "M_theta", H5T_NATIVE_INTEGER, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_INTEGER, pest%nx2, one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "N_zeta", H5T_NATIVE_INTEGER, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_INTEGER, pest%nx3-1, one_size, ierr)
+    call h5dclose_f(data_id, ierr)
+    call h5sclose_f(space_id, ierr)
+
+    dims(1) = pest%nx2
+    dims(2) = pest%nx3-1
+
+    do k=pest%ix31,pest%ix32-1
+      do j=pest%ix21,pest%ix22
+        if (j .lt. pest%ix22) then 
+          jp1 = j+1 
+        else 
+          jp1 = pest%ix21
+        end if
+        theta = 0.
+        theta_j = pest%x2(j) + pest%iota(idx1)*pest%x3(k,idx1)
+        theta_jp1 = pest%x2(jp1) + pest%iota(idx1)*pest%x3(k,idx1)
+        if (theta_j .lt. (0.0 - eps)) then
+          theta_j = pi2 + theta_j
+        end if
+        if (theta_jp1 .lt. (0.0 - eps)) then 
+          theta_jp1 = pi2 + theta_jp1
+        end if
+        i = 0
+        do while (theta .lt. (theta_j - eps))
+          i = i + 1
+          theta = real(i)*pi2/real(pest%nx2)
+        end do
+        theta_j = mod(theta_j,pi2)
+        theta_jp1 = mod(theta_jp1,pi2)
+
+        theta_index = mod(i,pest%nx2)
+        theta_interp = real(theta_index)*pi2/real(pest%nx2)
+        theta_coords(j,k) = theta_interp
+        zeta_coords(j,k) = pest%x3(k,idx1)
+        theta_indices(j,k) = theta_index+1
+        zeta_indices(j,k) = k+pest%nx3/2+1
+      end do
+    end do
+
+    call h5screate_simple_f(rank,dims,space_id,ierr) 
+   
+    call h5dcreate_f(file_id, "Theta", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, theta_coords, dims, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "Zeta", H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, zeta_coords, dims, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "Theta Indices", H5T_NATIVE_INTEGER, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_INTEGER, theta_indices, dims, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5dcreate_f(file_id, "Zeta Indices", H5T_NATIVE_INTEGER, space_id, data_id, ierr)
+    call h5dwrite_f(data_id, H5T_NATIVE_INTEGER, zeta_indices, dims, ierr)
+    call h5dclose_f(data_id, ierr)
+
+    call h5sclose_f(space_id,ierr)
+
+  end subroutine
+
+
+  subroutine write_mapping_file_surf_data_hdf5(file_id,pest,idx1,data_name,surf_data)
+    integer(hid_t), intent(in) :: file_id
+    type(PEST_Obj), intent(in) :: pest
+    integer, intent(in) :: idx1
+    character(len=32), intent(in) :: data_name
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32), intent(in) :: surf_data
+    real(dp), dimension(pest%ix21:pest%ix22,pest%ix31:pest%ix32) :: surf_interp
+    integer :: i, j, jp1, k, iunit_tz, theta_index, ierr
+    real(dp) :: theta, theta_j, theta_jp1, theta_interp, dt1, dt2, delta
+    real(dp), parameter :: pi2 = pi+pi
+    real(dp), parameter :: eps = 1e-8
+
+    integer(hid_t) :: data_id, space_id
+    integer, parameter :: rank = 2
+    integer(hsize_t), dimension(2) :: dims
+
+    dims(1) = pest%nx2
+    dims(2) = pest%nx3-1
+    do k=pest%ix31,pest%ix32-1
+      do j=pest%ix21,pest%ix22
+        if (j .lt. pest%ix22) then 
+          jp1 = j+1 
+        else 
+          jp1 = pest%ix21
+        end if
+        theta = 0.
+        theta_j = pest%x2(j) + pest%iota(idx1)*pest%x3(k,idx1)
+        theta_jp1 = pest%x2(jp1) + pest%iota(idx1)*pest%x3(k,idx1)
+        if (theta_j .lt. (0.0 - eps)) then
+          theta_j = pi2 + theta_j
+        end if
+        if (theta_jp1 .lt. (0.0 - eps)) then 
+          theta_jp1 = pi2 + theta_jp1
+        end if
+        i = 0
+        do while (theta .lt. (theta_j - eps))
+          i = i + 1
+          theta = real(i)*pi2/real(pest%nx2)
+        end do
+        theta_j = mod(theta_j,pi2)
+        theta_jp1 = mod(theta_jp1,pi2)
+
+        theta_index = mod(i,pest%nx2)
+        theta_interp = real(theta_index)*pi2/real(pest%nx2)
+        dt1 = theta_interp - theta_j
+        if (dt1 .lt. -eps) then
+          dt1 = dt1 + pi2
+        end if
+        dt2 = theta_jp1 - theta_interp
+        if (dt2 .lt. -eps) then
+          dt2 = dt2 + pi2
+        end if       
+        surf_interp(j,k) = real(pest%nx2)/pi2*(dt2*surf_data(j,k) + dt1*surf_data(jp1,k))
+
+      end do
+    end do
+    call h5screate_simple_f(rank,dims,space_id,ierr) 
+   
+    call h5dcreate_f(file_id, trim(data_name), H5T_NATIVE_DOUBLE, space_id, data_id, ierr)
+
+    call h5dwrite_f(data_id, H5T_NATIVE_DOUBLE, surf_interp, dims, ierr)
+
+    call h5dclose_f(data_id, ierr)
+
+    call h5sclose_f(space_id,ierr)
+  end subroutine
+
 end module

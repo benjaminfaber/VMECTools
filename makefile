@@ -22,9 +22,11 @@ CXX_INCS := -I$(OBJS_DIR) -I$(LIB_DIR)
 DOCKER_ENV_FILE := $(shell find / -maxdepth 1 -name '.dockerenv')
 ifneq ($(DOCKER_ENV_FILE),/.dockerenv)
 NETCDF_F_INC_DIR = /opt/gcc/openmpi/netcdf-fortran-4.4.5/include
-NETCDF_F_LIB_DIR = /opt/gcc/openmpi/netcdf-fortran-4.4.5/include
-NETCDF_C_INC_DIR = /opt/gcc/netcdf-c-4.7.0/lib
+NETCDF_F_LIB_DIR = /opt/gcc/openmpi/netcdf-fortran-4.4.5/lib
+NETCDF_C_INC_DIR = /opt/gcc/netcdf-c-4.7.0/include
 NETCDF_C_LIB_DIR = /opt/gcc/netcdf-c-4.7.0/lib
+HDF5_INC_DIR = /opt/gcc/hdf5-parallel-1.10.5/include
+HDF5_LIB_DIR = /opt/gcc/hdf5-parallel-1.10.5/lib
 BLAS_LIB_DIR = /opt/gcc/openblas-0.3.7/lib
 else
 NETCDF_F_INC_DIR = /usr/include
@@ -42,9 +44,9 @@ else
 MARCH_FLAG = x86-64
 endif
 COMPILE_FLAGS := -O3 -march=$(MARCH_FLAG) -fopenmp
-FC_FLAGS := $(COMPILE_FLAGS) -I$(NETCDF_F_INC_DIR) -ffree-line-length-none
+FC_FLAGS := $(COMPILE_FLAGS) -I$(NETCDF_F_INC_DIR) -I$(HDF5_INC_DIR) -ffree-line-length-none
 CXX_FLAGS := $(COMPILE_FLAGS)
-F_LD_FLAGS := $(COMPILE_FLAGS) -L$(NETCDF_F_LIB_DIR) -L$(NETCDF_C_LIB_DIR) -L$(BLAS_LIB_DIR) -lnetcdff -lnetcdf -lopenblas
+F_LD_FLAGS := $(COMPILE_FLAGS) -L$(NETCDF_F_LIB_DIR) -L$(NETCDF_C_LIB_DIR) -L$(HDF5_LIB_DIR) -L$(BLAS_LIB_DIR) -lnetcdff -lnetcdf -lhdf5_fortran -lhdf5 -lopenblas
 CXX_LD_FLAGS := $(F_LD_FLAGS) -lgfortran
 # End of system-dependent variable assignments
 
